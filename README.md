@@ -8,7 +8,7 @@ Home Assistant config:
 
 ```
 climate:
-  - platform: hysenheating
+  - platform: hysen2pfc
     name: Living
     host: 192.168.100.150
     mac: '78:0f:77:ea:72:2d'
