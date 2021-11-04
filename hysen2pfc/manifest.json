@@ -1,7 +1,7 @@
 {
   "domain": "hysen2pfc",
   "name": "Hysen 2 Pipe Fan Coil",
-  "version": "0.4.12 ",
+  "version": "0.4.12",
   "documentation": "https://github.com/uspass/hysen2pfc/blob/master/README.md",
   "dependencies": [],
   "codeowners": ["@uss"],
