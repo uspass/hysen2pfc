@@ -665,36 +665,33 @@ class Hysen2PipeFanCoil(ClimateEntity):
         return self._power_state == STATE_ON
 
     @property
-    def device_state_attributes(self):
+    def extra_state_attributes(self):
         """Return the specific state attributes of the device."""
-        attrs = {}
-        if self._available:
-            attrs.update({
-                ATTR_FWVERSION: self._fwversion,
-                ATTR_HVAC_MODE: self._hvac_mode,
-                ATTR_KEY_LOCK: self._key_lock,
-                ATTR_VALVE_STATE: self._valve_state,
-                ATTR_POWER_STATE: self._power_state,
-                ATTR_HYSTERESIS: self._hysteresis,
-                ATTR_CALIBRATION: self._calibration,
-                ATTR_COOLING_MAX_TEMP: self._cooling_max_temp,
-                ATTR_COOLING_MIN_TEMP: self._cooling_min_temp,
-                ATTR_HEATING_MAX_TEMP: self._heating_max_temp,
-                ATTR_HEATING_MIN_TEMP: self._heating_min_temp,
-                ATTR_FAN_CONTROL: self._fan_control,
-                ATTR_FROST_PROTECTION: self._frost_protection,
-                ATTR_DEVICE_TIME: self._device_time,
-                ATTR_DEVICE_WEEKDAY: self._device_weekday,
-                ATTR_WEEKLY_SCHEDULE: self._schedule,
-                ATTR_PERIOD1_ENABLED: self._period1_enabled,
-                ATTR_PERIOD1_START_TIME: self._period1_start_time,
-                ATTR_PERIOD1_END_TIME: self._period1_end_time,
-                ATTR_PERIOD2_ENABLED: self._period2_enabled,
-                ATTR_PERIOD2_START_TIME: self._period2_start_time,
-                ATTR_PERIOD2_END_TIME: self._period2_end_time,
-                ATTR_TIME_VALVE_ON: self._time_valve_on,
-            })
-        return attrs
+        return {
+            ATTR_FWVERSION: self._fwversion,
+            ATTR_HVAC_MODE: self._hvac_mode,
+            ATTR_KEY_LOCK: self._key_lock,
+            ATTR_VALVE_STATE: self._valve_state,
+            ATTR_POWER_STATE: self._power_state,
+            ATTR_HYSTERESIS: self._hysteresis,
+            ATTR_CALIBRATION: self._calibration,
+            ATTR_COOLING_MAX_TEMP: self._cooling_max_temp,
+            ATTR_COOLING_MIN_TEMP: self._cooling_min_temp,
+            ATTR_HEATING_MAX_TEMP: self._heating_max_temp,
+            ATTR_HEATING_MIN_TEMP: self._heating_min_temp,
+            ATTR_FAN_CONTROL: self._fan_control,
+            ATTR_FROST_PROTECTION: self._frost_protection,
+            ATTR_DEVICE_TIME: self._device_time,
+            ATTR_DEVICE_WEEKDAY: self._device_weekday,
+            ATTR_WEEKLY_SCHEDULE: self._schedule,
+            ATTR_PERIOD1_ENABLED: self._period1_enabled,
+            ATTR_PERIOD1_START_TIME: self._period1_start_time,
+            ATTR_PERIOD1_END_TIME: self._period1_end_time,
+            ATTR_PERIOD2_ENABLED: self._period2_enabled,
+            ATTR_PERIOD2_START_TIME: self._period2_start_time,
+            ATTR_PERIOD2_END_TIME: self._period2_end_time,
+            ATTR_TIME_VALVE_ON: self._time_valve_on,
+        }
 
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
