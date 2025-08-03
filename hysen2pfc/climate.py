@@ -8,38 +8,8 @@ from functools import partial
 import binascii
 import logging
 import voluptuous as vol
-from homeassistant.helpers import config_validation as cv, entity_platform, service
 from datetime import datetime
-
-from homeassistant.components.climate import (
-    PLATFORM_SCHEMA, 
-    ClimateEntity
-)
-
-from homeassistant.components.climate.const import (
-    DOMAIN,
-    ATTR_HVAC_MODE,
-    CURRENT_HVAC_OFF,
-    CURRENT_HVAC_HEAT,
-    CURRENT_HVAC_COOL,
-    CURRENT_HVAC_FAN,
-    CURRENT_HVAC_IDLE,
-    FAN_LOW,
-    FAN_MEDIUM,
-    FAN_HIGH,
-    FAN_AUTO,
-    HVAC_MODE_OFF,
-    HVAC_MODE_HEAT,
-    HVAC_MODE_COOL,
-    HVAC_MODE_FAN_ONLY,
-    PRESET_NONE,
-    SERVICE_SET_HVAC_MODE,
-    SERVICE_SET_TEMPERATURE ,
-    SUPPORT_FAN_MODE,
-    SUPPORT_PRESET_MODE,
-    SUPPORT_TARGET_TEMPERATURE
-)
-
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     ATTR_TEMPERATURE,
@@ -49,16 +19,87 @@ from homeassistant.const import (
     CONF_TIMEOUT,
     PRECISION_WHOLE,
     SERVICE_TURN_OFF,
-    SERVICE_TURN_ON,  
+    SERVICE_TURN_ON,
+    UnitOfTemperature
+)
+from homeassistant.components.climate import (
+    PLATFORM_SCHEMA,
+    ClimateEntity,
+    ClimateEntityFeature
+)
+from homeassistant.components.climate.const import (
+    DOMAIN,
+    ATTR_HVAC_MODE,
+    FAN_LOW,
+    FAN_MEDIUM,
+    FAN_HIGH,
+    FAN_AUTO,
+    HVACAction,
+    HVACMode,
+    PRESET_NONE,
+    SERVICE_SET_HVAC_MODE,
+    SERVICE_SET_TEMPERATURE
+)
+from .const import (
+    DATA_KEY,
+    DEFAULT_NAME,
+    CONF_SYNC_CLOCK,
+    CONF_SYNC_HOUR,
+    DEFAULT_TIMEOUT,
+    DEFAULT_SYNC_CLOCK,
+    DEFAULT_SYNC_HOUR,
     STATE_ON,
     STATE_OFF,
-    STATE_LOCKED,
-    STATE_UNLOCKED,
     STATE_OPEN,
     STATE_CLOSED,
-    TEMP_CELSIUS
+    STATE_ALL_UNLOCKED,
+    STATE_POWER_UNLOCKED,
+    STATE_ALL_LOCKED,
+    STATE_HYSTERESIS_HALVE,
+    STATE_HYSTERESIS_WHOLE,
+    PRESET_TODAY,
+    PRESET_WORKDAYS,
+    PRESET_SIXDAYS,
+    PRESET_FULLWEEK,
+    ATTR_FWVERSION,
+    ATTR_KEY_LOCK,
+    ATTR_POWER_STATE,
+    ATTR_VALVE_STATE,
+    ATTR_HYSTERESIS,
+    ATTR_CALIBRATION,
+    ATTR_LIMIT_TEMP,
+    ATTR_COOLING_MAX_TEMP,
+    ATTR_COOLING_MIN_TEMP,
+    ATTR_HEATING_MAX_TEMP,
+    ATTR_HEATING_MIN_TEMP,
+    ATTR_FAN_CONTROL,
+    ATTR_FROST_PROTECTION,
+    ATTR_TIME_NOW,
+    ATTR_DEVICE_TIME,
+    ATTR_DEVICE_WEEKDAY,
+    ATTR_WEEKLY_SCHEDULE,
+    ATTR_PERIOD1_ENABLED,
+    ATTR_PERIOD1_START_TIME,
+    ATTR_PERIOD1_END_TIME,
+    ATTR_PERIOD2_ENABLED,
+    ATTR_PERIOD2_START_TIME,
+    ATTR_PERIOD2_END_TIME,
+    ATTR_TIME_VALVE_ON,
+    SERVICE_SET_KEY_LOCK,
+    SERVICE_SET_HYSTERESIS,
+    SERVICE_SET_CALIBRATION,
+    SERVICE_SET_COOLING_MAX_TEMP,
+    SERVICE_SET_COOLING_MIN_TEMP,
+    SERVICE_SET_HEATING_MAX_TEMP,
+    SERVICE_SET_HEATING_MIN_TEMP,
+    SERVICE_SET_FAN_CONTROL,
+    SERVICE_SET_FROST_PROTECTION,
+    SERVICE_SET_TIME,
+    SERVICE_SET_SCHEDULE,
+    HYSTERESIS_MODES,
+    FAN_MODES,
+    FAN_MODES_FAN_ONLY
 )
-
 from hysen import (
     Hysen2PipeFanCoilDevice,
     HYSEN2PFC_KEY_LOCK_OFF,
@@ -101,25 +142,6 @@ from hysen import (
     HYSEN2PFC_WEEKDAY_SUNDAY
 )
 
-_LOGGER = logging.getLogger(__name__)
-
-DEFAULT_NAME = "Hysen 2 Pipe Fan Coil Thermostat"
-
-PRESET_SCHEDULED = "Scheduled"
-PRESET_MANUAL    = "Manual"
-
-STATE_ALL_UNLOCKED      = "unlocked"
-STATE_POWER_UNLOCKED    = "power_unlocked"
-STATE_ALL_LOCKED        = "locked"
-
-STATE_HYSTERESIS_HALVE  = "0.5"
-STATE_HYSTERESIS_WHOLE  = "1"
-
-STATE_SCHEDULE_MANUAL   = "manual"
-STATE_SCHEDULE_12345    = "12345"
-STATE_SCHEDULE_123456   = "123456"
-STATE_SCHEDULE_1234567  = "1234567"
-
 DEVICE_MIN_TEMP         = HYSEN2PFC_MIN_TEMP
 DEVICE_MAX_TEMP         = HYSEN2PFC_MAX_TEMP
 DEVICE_CALIBRATION_MIN  = HYSEN2PFC_CALIBRATION_MIN
@@ -131,29 +153,11 @@ DEVICE_HEATING_MIN_TEMP = HYSEN2PFC_HEATING_MIN_TEMP
 DEVICE_WEEKDAY_MONDAY   = HYSEN2PFC_WEEKDAY_MONDAY
 DEVICE_WEEKDAY_SUNDAY   = HYSEN2PFC_WEEKDAY_SUNDAY
 
-HYSTERESIS_MODES = [
-    STATE_HYSTERESIS_HALVE,
-    STATE_HYSTERESIS_WHOLE 
-]
-
 HVAC_MODES = [
-    HVAC_MODE_OFF,
-    HVAC_MODE_COOL,
-    HVAC_MODE_HEAT, 
-    HVAC_MODE_FAN_ONLY
-]
-
-FAN_MODES = [
-    FAN_LOW,
-    FAN_MEDIUM,
-    FAN_HIGH,
-    FAN_AUTO
-]
-
-FAN_MODES_FAN_ONLY = [
-    FAN_LOW,
-    FAN_MEDIUM,
-    FAN_HIGH
+    HVACMode.OFF,
+    HVACMode.COOL,
+    HVACMode.HEAT,
+    HVACMode.FAN_ONLY
 ]
 
 HYSEN_KEY_LOCK_TO_HASS = {
@@ -214,29 +218,29 @@ HASS_FROST_PROTECTION_TO_HYSEN = {
 }
 
 HYSEN_SCHEDULE_TO_HASS = {
-    HYSEN2PFC_SCHEDULE_TODAY   : STATE_SCHEDULE_MANUAL,
-    HYSEN2PFC_SCHEDULE_12345   : STATE_SCHEDULE_12345,
-    HYSEN2PFC_SCHEDULE_123456  : STATE_SCHEDULE_123456,
-    HYSEN2PFC_SCHEDULE_1234567 : STATE_SCHEDULE_1234567,
+    HYSEN2PFC_SCHEDULE_TODAY   : PRESET_TODAY,
+    HYSEN2PFC_SCHEDULE_12345   : PRESET_WORKDAYS,
+    HYSEN2PFC_SCHEDULE_123456  : PRESET_SIXDAYS,
+    HYSEN2PFC_SCHEDULE_1234567 : PRESET_FULLWEEK,
 }
 
 HASS_SCHEDULE_TO_HYSEN = {
-    STATE_SCHEDULE_MANUAL  : HYSEN2PFC_SCHEDULE_TODAY,
-    STATE_SCHEDULE_12345   : HYSEN2PFC_SCHEDULE_12345,
-    STATE_SCHEDULE_123456  : HYSEN2PFC_SCHEDULE_123456,
-    STATE_SCHEDULE_1234567 : HYSEN2PFC_SCHEDULE_1234567,
+    PRESET_TODAY    : HYSEN2PFC_SCHEDULE_TODAY,
+    PRESET_WORKDAYS : HYSEN2PFC_SCHEDULE_12345,
+    PRESET_SIXDAYS  : HYSEN2PFC_SCHEDULE_123456,
+    PRESET_FULLWEEK : HYSEN2PFC_SCHEDULE_1234567,
 }
 
 HYSEN_MODE_TO_HASS = {
-    HYSEN2PFC_MODE_FAN  : HVAC_MODE_FAN_ONLY,
-    HYSEN2PFC_MODE_COOL : HVAC_MODE_COOL,
-    HYSEN2PFC_MODE_HEAT : HVAC_MODE_HEAT,
+    HYSEN2PFC_MODE_FAN  : HVACMode.FAN_ONLY,
+    HYSEN2PFC_MODE_COOL : HVACMode.COOL,
+    HYSEN2PFC_MODE_HEAT : HVACMode.HEAT,
 }
 
 HASS_MODE_TO_HYSEN = {
-    HVAC_MODE_FAN_ONLY : HYSEN2PFC_MODE_FAN,
-    HVAC_MODE_COOL     : HYSEN2PFC_MODE_COOL,
-    HVAC_MODE_HEAT     : HYSEN2PFC_MODE_HEAT,
+    HVACMode.FAN_ONLY : HYSEN2PFC_MODE_FAN,
+    HVACMode.COOL     : HYSEN2PFC_MODE_COOL,
+    HVACMode.HEAT     : HYSEN2PFC_MODE_HEAT,
 }
 
 HYSEN_FAN_TO_HASS = {
@@ -263,79 +267,38 @@ HASS_PERIOD_ENABLED_TO_HYSEN = {
     False : HYSEN2PFC_PERIOD_DISABLED,
 }
 
-DATA_KEY = 'climate.hysen2pfc'
-
-ATTR_FWVERSION               = 'fwversion'
-ATTR_KEY_LOCK                = 'key_lock'
-ATTR_POWER_STATE             = 'power_state'
-ATTR_VALVE_STATE             = 'valve_state'
-ATTR_HYSTERESIS              = 'hysteresis'
-ATTR_CALIBRATION             = 'calibration'
-ATTR_LIMIT_TEMP              = 'temp'
-ATTR_COOLING_MAX_TEMP        = 'cooling_max_temp'
-ATTR_COOLING_MIN_TEMP        = 'cooling_min_temp'
-ATTR_HEATING_MAX_TEMP        = 'heating_max_temp'
-ATTR_HEATING_MIN_TEMP        = 'heating_min_temp'
-ATTR_FAN_CONTROL             = 'fan_control'
-ATTR_FROST_PROTECTION        = 'frost_protection'
-ATTR_TIME_NOW                = 'now'
-ATTR_DEVICE_TIME             = 'time'
-ATTR_DEVICE_WEEKDAY          = 'weekday'
-ATTR_WEEKLY_SCHEDULE         = 'weekly_schedule'
-ATTR_PERIOD1_ENABLED         = 'period1_enabled'
-ATTR_PERIOD1_START_TIME      = 'period1_start_time'
-ATTR_PERIOD1_END_TIME        = 'period1_end_time'
-ATTR_PERIOD2_ENABLED         = 'period2_enabled'
-ATTR_PERIOD2_START_TIME      = 'period2_start_time'
-ATTR_PERIOD2_END_TIME        = 'period2_end_time'
-ATTR_TIME_VALVE_ON           = 'time_valve_on'
-
-SERVICE_SET_KEY_LOCK         = 'set_key_lock'
-SERVICE_SET_HYSTERESIS       = 'set_hysteresis'
-SERVICE_SET_CALIBRATION      = 'set_calibration'
-SERVICE_SET_COOLING_MAX_TEMP = 'set_cooling_max_temp'
-SERVICE_SET_COOLING_MIN_TEMP = 'set_cooling_min_temp'
-SERVICE_SET_HEATING_MAX_TEMP = 'set_heating_max_temp'
-SERVICE_SET_HEATING_MIN_TEMP = 'set_heating_min_temp'
-SERVICE_SET_FAN_CONTROL      = 'set_fan_control'
-SERVICE_SET_FROST_PROTECTION = 'set_frost_protection'
-SERVICE_SET_TIME             = 'set_time'
-SERVICE_SET_SCHEDULE         = 'set_schedule'
-
-CONF_SYNC_CLOCK = 'sync_clock'
-CONF_SYNC_HOUR = 'sync_hour'
-
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Optional(CONF_NAME, default = DEFAULT_NAME): cv.string,
+        vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
         vol.Required(CONF_HOST): cv.string,
         vol.Required(CONF_MAC): cv.string,
-        vol.Optional(CONF_TIMEOUT, default = 10): cv.positive_int,
-        vol.Optional(CONF_SYNC_CLOCK, default = False): cv.boolean,
-        vol.Optional(CONF_SYNC_HOUR, default = 4): cv.positive_int,
+        vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): cv.positive_int,
+        vol.Optional(CONF_SYNC_CLOCK, default=DEFAULT_SYNC_CLOCK): cv.boolean,
+        vol.Optional(CONF_SYNC_HOUR, default=DEFAULT_SYNC_HOUR): cv.positive_int,
     }
 )
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info = None):
-    """Set up the Hysen HVACR thermostat platform."""
+_LOGGER = logging.getLogger(__name__)
+
+async def async_setup_entry(hass, config_entry, async_add_entities):
+    """Set up the Hysen HVACR thermostat platform from a config entry."""
     if DATA_KEY not in hass.data:
         hass.data[DATA_KEY] = {}
 
-    name = config.get(CONF_NAME)
-    host = config.get(CONF_HOST)
-    mac_addr = binascii.unhexlify(config.get(CONF_MAC).encode().replace(b':', b''))
-    timeout = config.get(CONF_TIMEOUT)
-    sync_clock = config.get(CONF_SYNC_CLOCK)
-    sync_hour = config.get(CONF_SYNC_HOUR)
+    name = config_entry.data.get(CONF_NAME, DEFAULT_NAME)
+    host = config_entry.data[CONF_HOST]
+    mac_addr = binascii.unhexlify(config_entry.data[CONF_MAC].replace(":", ""))
+    timeout = config_entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+    sync_clock = config_entry.data.get(CONF_SYNC_CLOCK, DEFAULT_SYNC_CLOCK)
+    sync_hour = config_entry.data.get(CONF_SYNC_HOUR, DEFAULT_SYNC_HOUR)
 
     hysen_device = Hysen2PipeFanCoilDevice((host, 80), mac_addr, timeout, sync_clock, sync_hour)
-    
-    device = Hysen2PipeFanCoil(name, hysen_device, host)
-    hass.data[DATA_KEY][host] = device
 
-    async_add_entities([device], update_before_add = True)
+    device_id = hass.data[DATA_KEY][host]["device_id"]
+    device = Hysen2PipeFanCoil(name, hysen_device, host, device_id)
+    async_add_entities([device], update_before_add=True)
 
-    platform = entity_platform.current_platform.get()
+    platform = entity_platform.async_get_current_platform()
 
     platform.async_register_entity_service(
         SERVICE_SET_KEY_LOCK,
@@ -350,7 +313,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         SERVICE_SET_HVAC_MODE,
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
-            vol.Required(ATTR_HVAC_MODE): vol.In([HVAC_MODE_OFF, HVAC_MODE_COOL, HVAC_MODE_HEAT, HVAC_MODE_FAN_ONLY]),
+            vol.Required(ATTR_HVAC_MODE): vol.In([HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT, HVACMode.FAN_ONLY]),
         },
         Hysen2PipeFanCoil.async_set_hvac_mode.__name__,
     )
@@ -360,7 +323,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Required(ATTR_TEMPERATURE): vol.All(
-                vol.Coerce(int), vol.Clamp(min = DEVICE_MIN_TEMP, max = DEVICE_MAX_TEMP)
+                vol.Coerce(int), vol.Clamp(min=DEVICE_MIN_TEMP, max=DEVICE_MAX_TEMP)
             ),
         },
         Hysen2PipeFanCoil.async_set_temperature.__name__,
@@ -396,7 +359,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Required(ATTR_CALIBRATION): vol.All(
-                vol.Coerce(float), vol.Clamp(min = DEVICE_CALIBRATION_MIN, max = DEVICE_CALIBRATION_MAX)
+                vol.Coerce(float), vol.Clamp(min=DEVICE_CALIBRATION_MIN, max=DEVICE_CALIBRATION_MAX)
             ),
         },
         Hysen2PipeFanCoil.async_set_calibration.__name__,
@@ -407,7 +370,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Required(ATTR_LIMIT_TEMP): vol.All(
-                vol.Coerce(int), vol.Clamp(min = DEVICE_COOLING_MIN_TEMP, max = DEVICE_COOLING_MAX_TEMP)
+                vol.Coerce(int), vol.Clamp(min=DEVICE_COOLING_MIN_TEMP, max=DEVICE_COOLING_MAX_TEMP)
             ),
         },
         Hysen2PipeFanCoil.async_set_cooling_max_temp.__name__,
@@ -418,7 +381,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Required(ATTR_LIMIT_TEMP): vol.All(
-                vol.Coerce(int), vol.Clamp(min = DEVICE_COOLING_MIN_TEMP, max = DEVICE_COOLING_MAX_TEMP)
+                vol.Coerce(int), vol.Clamp(min=DEVICE_COOLING_MIN_TEMP, max=DEVICE_COOLING_MAX_TEMP)
             ),
         },
         Hysen2PipeFanCoil.async_set_cooling_min_temp.__name__,
@@ -429,7 +392,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Required(ATTR_LIMIT_TEMP): vol.All(
-                vol.Coerce(int), vol.Clamp(min = DEVICE_HEATING_MIN_TEMP, max = DEVICE_HEATING_MAX_TEMP)
+                vol.Coerce(int), vol.Clamp(min=DEVICE_HEATING_MIN_TEMP, max=DEVICE_HEATING_MAX_TEMP)
             ),
         },
         Hysen2PipeFanCoil.async_set_heating_max_temp.__name__,
@@ -440,7 +403,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Required(ATTR_LIMIT_TEMP): vol.All(
-                vol.Coerce(int), vol.Clamp(min = DEVICE_HEATING_MIN_TEMP, max = DEVICE_HEATING_MAX_TEMP)
+                vol.Coerce(int), vol.Clamp(min=DEVICE_HEATING_MIN_TEMP, max=DEVICE_HEATING_MAX_TEMP)
             ),
         },
         Hysen2PipeFanCoil.async_set_heating_min_temp.__name__,
@@ -459,7 +422,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         SERVICE_SET_FROST_PROTECTION,
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
-            vol.Required(ATTR_FROST_PROTECTION):  vol.In([STATE_ON, STATE_OFF]),
+            vol.Required(ATTR_FROST_PROTECTION): vol.In([STATE_ON, STATE_OFF]),
         },
         Hysen2PipeFanCoil.async_set_frost_protection.__name__,
     )
@@ -471,7 +434,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
             vol.Optional(ATTR_TIME_NOW): cv.boolean,
             vol.Optional(ATTR_DEVICE_TIME): cv.time,
             vol.Optional(ATTR_DEVICE_WEEKDAY): vol.All(
-                vol.Coerce(int), vol.Clamp(min = DEVICE_WEEKDAY_MONDAY, max = DEVICE_WEEKDAY_SUNDAY)
+                vol.Coerce(int), vol.Clamp(min=DEVICE_WEEKDAY_MONDAY, max=DEVICE_WEEKDAY_SUNDAY)
             ),
         },
         Hysen2PipeFanCoil.async_set_time.__name__,
@@ -481,7 +444,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         SERVICE_SET_SCHEDULE,
         {
             vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
-            vol.Optional(ATTR_WEEKLY_SCHEDULE): vol.In([STATE_SCHEDULE_MANUAL, STATE_SCHEDULE_12345, STATE_SCHEDULE_123456, STATE_SCHEDULE_1234567]),
+            vol.Optional(ATTR_WEEKLY_SCHEDULE): vol.In([PRESET_TODAY, PRESET_WORKDAYS, PRESET_SIXDAYS, PRESET_FULLWEEK]),
             vol.Optional(ATTR_PERIOD1_ENABLED): cv.boolean,
             vol.Optional(ATTR_PERIOD1_START_TIME): cv.time,
             vol.Optional(ATTR_PERIOD1_END_TIME): cv.time,
@@ -492,23 +455,64 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info 
         Hysen2PipeFanCoil.async_set_schedule.__name__,
     )
 
-
 class Hysen2PipeFanCoil(ClimateEntity):
     """Representation of a Hysen HVACR device."""
 
-    def __init__(self, name, hysen_device, host):
+    def __init__(self, name, hysen_device, host, device_id):
         """Initialize the Hysen HVACR device."""
         self._name = name
         self._hysen_device = hysen_device
         self._host = host
-
+        self._device_id = device_id
+        self._power_state = STATE_OFF
         self._available = False
+        self._enable_turn_on_off_backwards_compatibility = False
+        self._unique_id = hysen_device.mac.hex().lower()
+        # Initialize all attributes to avoid AttributeError
+        self._fwversion = None
+        self._key_lock = None
+        self._valve_state = None
+        self._hvac_mode = None
+        self._fan_mode = None
+        self._room_temp = None
+        self._target_temp = None
+        self._hysteresis = None
+        self._calibration = None
+        self._cooling_max_temp = None
+        self._cooling_min_temp = None
+        self._heating_max_temp = None
+        self._heating_min_temp = None
+        self._fan_control = None
+        self._frost_protection = None
+        self._device_time = None
+        self._device_weekday = None
+        self._unknown = None
+        self._schedule = None
+        self._period1_enabled = None
+        self._period1_start_time = None
+        self._period1_end_time = None
+        self._period2_enabled = None
+        self._period2_start_time = None
+        self._period2_end_time = None
+        self._time_valve_on = None
 
     @property
     def unique_id(self):
         """Return a unique ID."""
         return self._unique_id
-        
+
+    @property
+    def device_info(self):
+        """Return device information to link this entity to a device."""
+        return {
+            "identifiers": {("hysen2pfc", self._hysen_device.mac.hex().lower())},
+            "name": self._name,
+            "manufacturer": "Hysen",
+            "model": "HY03AC-1-Wifi",
+            "sw_version": getattr(self, "_fwversion", "Unknown"),
+            "configuration_url": f"http://{self._host}",
+        }
+
     @property
     def name(self):
         """Return the name of the device."""
@@ -527,7 +531,7 @@ class Hysen2PipeFanCoil(ClimateEntity):
     @property
     def temperature_unit(self):
         """Return the unit of measurement which this thermostat uses."""
-        return TEMP_CELSIUS
+        return UnitOfTemperature.CELSIUS
 
     @property
     def hvac_mode(self):
@@ -535,60 +539,46 @@ class Hysen2PipeFanCoil(ClimateEntity):
         if self.is_on:
             return self._hvac_mode
         else:
-            return HVAC_MODE_OFF
+            return HVACMode.OFF
 
     @property
     def hvac_modes(self):
         """Return the list of available operation modes."""
-        if self.is_on:
-            if self.fan_mode == FAN_AUTO:
-                return [HVAC_MODE_OFF, HVAC_MODE_COOL, HVAC_MODE_HEAT]
-            else:
-                return [HVAC_MODE_OFF, HVAC_MODE_COOL, HVAC_MODE_HEAT, HVAC_MODE_FAN_ONLY]
+        if self._fan_mode == FAN_AUTO:
+            return [HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT]
         else:
-            return [HVAC_MODE_OFF]
+            return [HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT, HVACMode.FAN_ONLY]
 
     @property
     def hvac_action(self):
         """Return the current running hvac operation."""
         if self.is_on:
-            if self.hvac_mode == HVAC_MODE_FAN_ONLY:
-                return CURRENT_HVAC_FAN
+            if self._hvac_mode == HVACMode.FAN_ONLY:
+                return HVACAction.FAN
             if self._valve_state == STATE_CLOSED:
-                return CURRENT_HVAC_IDLE
-            if self.hvac_mode == HVAC_MODE_HEAT:
-                return CURRENT_HVAC_HEAT
+                return HVACAction.IDLE
+            if self._hvac_mode == HVACMode.HEAT:
+                return HVACAction.HEATING
             else:
-                return CURRENT_HVAC_COOL
+                return HVACAction.COOLING
         else:
-            return CURRENT_HVAC_OFF
-#TODO verify
+            return HVACAction.OFF
+
     @property
     def preset_mode(self):
-        """Return the current preset mode, e.g., manual, scheduled."""
-        # check if is set to manual
-        if self._schedule == STATE_SCHEDULE_MANUAL:
-            if self.is_on:
-                return PRESET_MANUAL
-            else:
-                return PRESET_NONE
+        """Return the current preset mode."""
+        if self.is_on:
+            return self._schedule
         else:
-            return PRESET_SCHEDULED
+            return PRESET_NONE
 
     @property
     def preset_modes(self):
         """Return a list of available preset modes."""
         if self.is_on:
-            return [STATE_SCHEDULE_MANUAL, STATE_SCHEDULE_12345, STATE_SCHEDULE_123456, STATE_SCHEDULE_1234567]
+            return [PRESET_TODAY, PRESET_WORKDAYS, PRESET_SIXDAYS, PRESET_FULLWEEK]
         else:
             return [PRESET_NONE]
-#        if self._schedule == STATE_SCHEDULE_MANUAL:
-#            if self.is_on:
-#                return [PRESET_MANUAL]
-#            else:
-#                return [PRESET_NONE]
-#        else:
-#            return [PRESET_SCHEDULED]
 
     @property
     def current_temperature(self):
@@ -598,15 +588,15 @@ class Hysen2PipeFanCoil(ClimateEntity):
     @property
     def target_temperature(self):
         """Return the temperature we try to reach."""
-        if self.is_on and self.hvac_mode != HVAC_MODE_FAN_ONLY:
+        if self.is_on and self._hvac_mode != HVACMode.FAN_ONLY:
             return self._target_temp
         else:
             return None
-         
+
     @property
     def target_temperature_step(self):
         """Return the supported step of target temperature."""
-        if self.is_on and self.hvac_mode != HVAC_MODE_FAN_ONLY:
+        if self.is_on and self._hvac_mode != HVACMode.FAN_ONLY:
             return PRECISION_WHOLE
         else:
             return None
@@ -619,9 +609,9 @@ class Hysen2PipeFanCoil(ClimateEntity):
     @property
     def fan_modes(self):
         """Return the list of available fan modes."""
-        if self.hvac_mode == HVAC_MODE_OFF:
-            return None
-        elif self.hvac_mode == HVAC_MODE_FAN_ONLY:
+        if self._hvac_mode == HVACMode.OFF:
+            return FAN_MODES
+        elif self._hvac_mode == HVACMode.FAN_ONLY:
             return FAN_MODES_FAN_ONLY
         else:
             return FAN_MODES
@@ -629,10 +619,10 @@ class Hysen2PipeFanCoil(ClimateEntity):
     @property
     def supported_features(self):
         """Returns the list of supported features."""
-        if self.hvac_mode == HVAC_MODE_FAN_ONLY:
-            return SUPPORT_FAN_MODE | SUPPORT_PRESET_MODE
+        if self._hvac_mode == HVACMode.FAN_ONLY:
+            return ClimateEntityFeature.FAN_MODE | ClimateEntityFeature.PRESET_MODE | ClimateEntityFeature.TURN_ON | ClimateEntityFeature.TURN_OFF
         else:
-            return SUPPORT_FAN_MODE | SUPPORT_PRESET_MODE | SUPPORT_TARGET_TEMPERATURE
+            return ClimateEntityFeature.FAN_MODE | ClimateEntityFeature.PRESET_MODE | ClimateEntityFeature.TURN_ON | ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TARGET_TEMPERATURE
 
     @property
     def available(self) -> bool:
@@ -642,9 +632,9 @@ class Hysen2PipeFanCoil(ClimateEntity):
     @property
     def min_temp(self):
         """Returns the minimum supported temperature."""
-        if self.hvac_mode == HVAC_MODE_FAN_ONLY:
+        if self._hvac_mode == HVACMode.FAN_ONLY:
             return None
-        elif self.hvac_mode == HVAC_MODE_HEAT:
+        elif self._hvac_mode == HVACMode.HEAT:
             return self._heating_min_temp
         else:
             return self._cooling_min_temp
@@ -652,9 +642,9 @@ class Hysen2PipeFanCoil(ClimateEntity):
     @property
     def max_temp(self):
         """Returns the maximum supported temperature."""
-        if self.hvac_mode == HVAC_MODE_FAN_ONLY:
+        if self._hvac_mode == HVACMode.FAN_ONLY:
             return None
-        elif self.hvac_mode == HVAC_MODE_HEAT:
+        elif self._hvac_mode == HVACMode.HEAT:
             return self._heating_max_temp
         else:
             return self._cooling_max_temp
@@ -696,6 +686,7 @@ class Hysen2PipeFanCoil(ClimateEntity):
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         temp = int(kwargs.get(ATTR_TEMPERATURE))
+        _LOGGER.debug("[%s] Setting temperature to %s", self._host, temp)
         await self._async_try_command(
             "Error in set_temperature",
             self._hysen_device.set_target_temp,
@@ -704,35 +695,38 @@ class Hysen2PipeFanCoil(ClimateEntity):
     async def async_set_fan_mode(self, fan_mode):
         """Set fan speed."""
         if fan_mode not in FAN_MODES:
-            _LOGGER.error("[%s] Error in async_set_fan_mode. Unknown fan mode \'%s\'.",
-                self._host,
-                fan_mode)
+            _LOGGER.error("[%s] Error in async_set_fan_mode. Unknown fan mode '%s'.", self._host, fan_mode)
             return
+        _LOGGER.debug("[%s] Setting fan mode to %s", self._host, fan_mode)
         await self._async_try_command(
             "Error in set_fan_mode",
             self._hysen_device.set_fan_mode,
             HASS_FAN_TO_HYSEN[fan_mode])
-        
+
     async def async_set_hvac_mode(self, hvac_mode):
         """Set hvac mode."""
+        _LOGGER.debug("[%s] Attempting to set hvac_mode to '%s', current is_on: '%s', fan_mode: '%s'",
+            self._host, hvac_mode, self.is_on, self._fan_mode)
+
         if hvac_mode not in HVAC_MODES:
-            _LOGGER.error("[%s] Error in async_set_hvac_mode. Unknown hvac mode \'%s\'.",
-                self._host,
-                hvac_mode)
+            _LOGGER.error("[%s] Error in async_set_hvac_mode. Unknown hvac mode '%s'.", self._host, hvac_mode)
             return
-        if hvac_mode == HVAC_MODE_OFF:
+
+        if hvac_mode == HVACMode.OFF:
             if self.is_on:
+                _LOGGER.debug("[%s] Turning off device", self._host)
                 await self.async_turn_off()
-            else:
-                # make sure it will not be in HVAC_MODE_FAN_ONLY and FAN_AUTO
-                if hvac_mode == HVAC_MODE_FAN_ONLY and self.fan_mode == FAN_AUTO:
-                    await self.async_set_fan_mode(FAN_LOW)
-                # check if it is in scheduled mode
-                if self.preset_mode == PRESET_SCHEDULED:
-                    await self.async_set_schedule(STATE_SCHEDULE_MANUAL, 
-                                                  None, None, None, None, None, None)
-                await self.async_turn_on()
         else:
+            if not self.is_on:
+                _LOGGER.debug("[%s] Turning on device", self._host)
+                await self.async_turn_on()
+            if hvac_mode == HVACMode.FAN_ONLY and self._fan_mode == FAN_AUTO:
+                _LOGGER.debug("[%s] Setting fan mode to low for fan_only", self._host)
+                await self.async_set_fan_mode(FAN_LOW)
+            if self.preset_mode != PRESET_TODAY:
+                _LOGGER.debug("[%s] Setting schedule to manual", self._host)
+                await self.async_set_schedule(PRESET_TODAY, None, None, None, None, None, None)
+            _LOGGER.debug("[%s] Setting operation mode to %s", self._host, hvac_mode)
             await self._async_try_command(
                 "Error in set_operation_mode",
                 self._hysen_device.set_operation_mode,
@@ -740,12 +734,18 @@ class Hysen2PipeFanCoil(ClimateEntity):
 
     async def async_set_preset_mode(self, preset_mode):
         """Set preset mode."""
-        await self.async_set_schedule(preset_mode, 
-                                      None, None, None, None, None, None)
-        return
+        _LOGGER.debug("[%s] Received request to set preset mode to '%s'", self._host, preset_mode)
+        if preset_mode not in self.preset_modes:
+            _LOGGER.error("[%s] Error in async_set_preset_mode. Unknown preset mode '%s'", self._host, preset_mode)
+            return
+        _LOGGER.debug("[%s] Setting preset mode to '%s'", self._host, preset_mode)
+        await self.async_set_schedule(preset_mode, None, None, None, None, None, None)
+        _LOGGER.debug("[%s] Updating state after setting preset mode", self._host)
+        await self.async_update()
 
     async def async_turn_on(self):
         """Turn device on."""
+        _LOGGER.debug("[%s] Turning on device", self._host)
         await self._async_try_command(
             "Error in turn_on",
             self._hysen_device.set_power,
@@ -753,33 +753,31 @@ class Hysen2PipeFanCoil(ClimateEntity):
 
     async def async_turn_off(self):
         """Turn device off."""
+        _LOGGER.debug("[%s] Turning off device", self._host)
         await self._async_try_command(
             "Error in turn_off",
             self._hysen_device.set_power,
             HASS_POWER_STATE_TO_HYSEN[STATE_OFF])
 
     async def async_set_key_lock(self, key_lock):
-        """Set key lock 
-           unlocked = Unlocked 
-           power_unlocked = All buttons locked except Power
-           locked = All buttons locked"""
+        """Set key lock."""
+        _LOGGER.debug("[%s] Setting key lock to %s", self._host, key_lock)
         await self._async_try_command(
             "Error in set_key_lock",
             self._hysen_device.set_key_lock,
             HASS_KEY_LOCK_TO_HYSEN[key_lock])
 
     async def async_set_hysteresis(self, hysteresis):
-        """Set hysteresis. 
-           0.5 = 0.5 degree Celsius hysteresis
-           1 = 1 degree Celsius hysteresis"""
+        """Set hysteresis."""
+        _LOGGER.debug("[%s] Setting hysteresis to %s", self._host, hysteresis)
         await self._async_try_command(
             "Error in set_hysteresis",
             self._hysen_device.set_hysteresis,
             HASS_HYSTERESIS_TO_HYSEN[hysteresis])
 
     async def async_set_calibration(self, calibration):
-        """Set temperature calibration. 
-           Range -5~+5 degree Celsius in 0.1 degree Celsius step."""
+        """Set temperature calibration."""
+        _LOGGER.debug("[%s] Setting calibration to %s", self._host, calibration)
         await self._async_try_command(
             "Error in set_calibration",
             self._hysen_device.set_calibration,
@@ -787,6 +785,7 @@ class Hysen2PipeFanCoil(ClimateEntity):
 
     async def async_set_cooling_max_temp(self, temp):
         """Set cooling upper limit."""
+        _LOGGER.debug("[%s] Setting cooling max temp to %s", self._host, temp)
         await self._async_try_command(
             "Error in set_cooling_max_temp",
             self._hysen_device.set_cooling_max_temp,
@@ -794,6 +793,7 @@ class Hysen2PipeFanCoil(ClimateEntity):
 
     async def async_set_cooling_min_temp(self, temp):
         """Set cooling lower limit."""
+        _LOGGER.debug("[%s] Setting cooling min temp to %s", self._host, temp)
         await self._async_try_command(
             "Error in set_cooling_min_temp",
             self._hysen_device.set_cooling_min_temp,
@@ -801,6 +801,7 @@ class Hysen2PipeFanCoil(ClimateEntity):
 
     async def async_set_heating_max_temp(self, temp):
         """Set heating upper limit."""
+        _LOGGER.debug("[%s] Setting heating max temp to %s", self._host, temp)
         await self._async_try_command(
             "Error in set_heating_max_temp",
             self._hysen_device.set_heating_max_temp,
@@ -808,31 +809,31 @@ class Hysen2PipeFanCoil(ClimateEntity):
 
     async def async_set_heating_min_temp(self, temp):
         """Set heating lower limit."""
+        _LOGGER.debug("[%s] Setting heating min temp to %s", self._host, temp)
         await self._async_try_command(
             "Error in set_heating_min_temp",
             self._hysen_device.set_heating_min_temp,
             temp)
 
     async def async_set_fan_control(self, fan_control):
-        """Set fan coil control mode 
-           Off = Fan is stopped when target temp reached 
-           On = Fan continues spinning when target temp reached."""
+        """Set fan coil control mode."""
+        _LOGGER.debug("[%s] Setting fan control to %s", self._host, fan_control)
         await self._async_try_command(
             "Error in set_fan_control",
             self._hysen_device.set_fan_control,
             HASS_FAN_CONTROL_TO_HYSEN[fan_control])
 
     async def async_set_frost_protection(self, frost_protection):
-        """Set frost_protection 
-        Off = No frost protection 
-        On = Keeps the room temp between 5 to 7 degree when device is turned off."""
+        """Set frost protection."""
+        _LOGGER.debug("[%s] Setting frost protection to %s", self._host, frost_protection)
         await self._async_try_command(
             "Error in set_frost_protection",
             self._hysen_device.set_frost_protection,
             HASS_FROST_PROTECTION_TO_HYSEN[frost_protection])
 
-    async def async_set_time(self, now = None, time = None, weekday = None):
+    async def async_set_time(self, now=None, time=None, weekday=None):
         """Set device time or to system time."""
+        _LOGGER.debug("[%s] Setting time, now=%s, time=%s, weekday=%s", self._host, now, time, weekday)
         await self._async_try_command(
             "Error in set_time",
             self._hysen_device.set_time,
@@ -842,26 +843,21 @@ class Hysen2PipeFanCoil(ClimateEntity):
             datetime.now().isoweekday() if now else weekday)
 
     async def async_set_schedule(
-                                 self, 
-                                 weekly_schedule = None,
-                                 period1_enabled = None,
-                                 period1_start_time = None,
-                                 period1_end_time = None,
-                                 period2_enabled = None,
-                                 period2_start_time = None,
-                                 period2_end_time = None
-                                ):
-        """Set schedule ."""
-        """Set weekly schedule mode 
-           today = Daily schedule valid for today 
-           12345 = Daily schedule valid from Monday to Friday
-           123456 = Daily schedule valid from Monday to Saturday 
-           1234567 = Daily schedule valid from Monday to Sunday
-           Set daily schedule in 2 periods"""
+        self,
+        weekly_schedule=None,
+        period1_enabled=None,
+        period1_start_time=None,
+        period1_end_time=None,
+        period2_enabled=None,
+        period2_start_time=None,
+        period2_end_time=None
+    ):
+        """Set schedule."""
+        _LOGGER.debug("[%s] Setting schedule, weekly=%s", self._host, weekly_schedule)
         if weekly_schedule is not None:
             await self._async_try_command(
-                "Error in set_weekly_schedule", 
-                self._hysen_device.set_weekly_schedule, 
+                "Error in set_weekly_schedule",
+                self._hysen_device.set_weekly_schedule,
                 HASS_SCHEDULE_TO_HYSEN[weekly_schedule])
         await self._async_try_command(
             "Error in set_daily_schedule",
@@ -885,40 +881,42 @@ class Hysen2PipeFanCoil(ClimateEntity):
         try:
             await self.hass.async_add_executor_job(partial(func, *args, **kwargs))
         except Exception as exc:
-            _LOGGER.error("[%s] %s %s: %s", self._host, self._name, mask_error, exc)
+            _LOGGER.error("[%s] %s: %s", self._host, mask_error, exc)
             self._available = False
 
     async def async_update(self):
         """Get the latest state from the device."""
+#        _LOGGER.debug("[%s] Updating device state", self._host)
         await self._async_try_command(
             "Error in get_device_status",
             self._hysen_device.get_device_status)
-        self._unique_id = self._hysen_device.unique_id
-        self._fwversion = self._hysen_device.fwversion
-        self._key_lock = str(HYSEN_KEY_LOCK_TO_HASS[self._hysen_device.key_lock])
-        self._valve_state = str(HYSEN_VALVE_STATE_TO_HASS[self._hysen_device.valve_state])
-        self._power_state = str(HYSEN_POWER_STATE_TO_HASS[self._hysen_device.power_state])
-        self._hvac_mode = str(HYSEN_MODE_TO_HASS[self._hysen_device.operation_mode])
-        self._fan_mode = str(HYSEN_FAN_TO_HASS[self._hysen_device.fan_mode])
-        self._room_temp = float(self._hysen_device.room_temp)
-        self._target_temp = float(self._hysen_device.target_temp)
-        self._hysteresis = str(HYSEN_HYSTERESIS_TO_HASS[self._hysen_device.hysteresis])
-        self._calibration = float(self._hysen_device.calibration)
-        self._cooling_max_temp = int(self._hysen_device.cooling_max_temp)
-        self._cooling_min_temp = int(self._hysen_device.cooling_min_temp)
-        self._heating_max_temp = int(self._hysen_device.heating_max_temp)
-        self._heating_min_temp = int(self._hysen_device.heating_min_temp)
-        self._fan_control = str(HYSEN_FAN_CONTROL_TO_HASS[self._hysen_device.fan_control])
-        self._frost_protection = str(HYSEN_FROST_PROTECTION_TO_HASS[self._hysen_device.frost_protection])
-        self._device_time = str(self._hysen_device.clock_hour).zfill(2) + ":" + str(self._hysen_device.clock_minute).zfill(2) + ":" + str(self._hysen_device.clock_second).zfill(2)
-        self._device_weekday = int(self._hysen_device.clock_weekday)
-        self._unknown = self._hysen_device.unknown
-        self._schedule = str(HYSEN_SCHEDULE_TO_HASS[self._hysen_device.schedule])
-        self._period1_enabled = str(HYSEN_PERIOD_ENABLED_TO_HASS[self._hysen_device.period1_start_enabled])
-        self._period1_start_time = str(self._hysen_device.period1_start_hour).zfill(2) + ":" + str(self._hysen_device.period1_start_min).zfill(2)
-        self._period1_end_time = str(self._hysen_device.period1_end_hour).zfill(2) + ":" + str(self._hysen_device.period1_end_min).zfill(2)
-        self._period2_enabled = str(HYSEN_PERIOD_ENABLED_TO_HASS[self._hysen_device.period2_start_enabled])
-        self._period2_start_time = str(self._hysen_device.period2_start_hour).zfill(2) + ":" + str(self._hysen_device.period2_start_min).zfill(2)
-        self._period2_end_time = str(self._hysen_device.period2_end_hour).zfill(2) + ":" + str(self._hysen_device.period2_end_min).zfill(2)
-        self._time_valve_on = int(self._hysen_device.time_valve_on)
-
+        if self._available:
+            self._fwversion = self._hysen_device.fwversion
+            self._key_lock = str(HYSEN_KEY_LOCK_TO_HASS[self._hysen_device.key_lock])
+            self._valve_state = str(HYSEN_VALVE_STATE_TO_HASS[self._hysen_device.valve_state])
+            self._power_state = str(HYSEN_POWER_STATE_TO_HASS[self._hysen_device.power_state])
+            self._hvac_mode = str(HYSEN_MODE_TO_HASS[self._hysen_device.operation_mode])
+            self._fan_mode = str(HYSEN_FAN_TO_HASS[self._hysen_device.fan_mode])
+            self._room_temp = float(self._hysen_device.room_temp)
+            self._target_temp = float(self._hysen_device.target_temp)
+            self._hysteresis = str(HYSEN_HYSTERESIS_TO_HASS[self._hysen_device.hysteresis])
+            self._calibration = float(self._hysen_device.calibration)
+            self._cooling_max_temp = int(self._hysen_device.cooling_max_temp)
+            self._cooling_min_temp = int(self._hysen_device.cooling_min_temp)
+            self._heating_max_temp = int(self._hysen_device.heating_max_temp)
+            self._heating_min_temp = int(self._hysen_device.heating_min_temp)
+            self._fan_control = str(HYSEN_FAN_CONTROL_TO_HASS[self._hysen_device.fan_control])
+            self._frost_protection = str(HYSEN_FROST_PROTECTION_TO_HASS[self._hysen_device.frost_protection])
+            self._device_time = str(self._hysen_device.clock_hour).zfill(2) + ":" + str(self._hysen_device.clock_minute).zfill(2) + ":" + str(self._hysen_device.clock_second).zfill(2)
+            self._device_weekday = int(self._hysen_device.clock_weekday)
+            self._unknown = self._hysen_device.unknown
+            self._schedule = str(HYSEN_SCHEDULE_TO_HASS[self._hysen_device.schedule])
+            self._period1_enabled = str(HYSEN_PERIOD_ENABLED_TO_HASS[self._hysen_device.period1_start_enabled])
+            self._period1_start_time = str(self._hysen_device.period1_start_hour).zfill(2) + ":" + str(self._hysen_device.period1_start_min).zfill(2)
+            self._period1_end_time = str(self._hysen_device.period1_end_hour).zfill(2) + ":" + str(self._hysen_device.period1_end_min).zfill(2)
+            self._period2_enabled = str(HYSEN_PERIOD_ENABLED_TO_HASS[self._hysen_device.period2_start_enabled])
+            self._period2_start_time = str(self._hysen_device.period2_start_hour).zfill(2) + ":" + str(self._hysen_device.period2_start_min).zfill(2)
+            self._period2_end_time = str(self._hysen_device.period2_end_hour).zfill(2) + ":" + str(self._hysen_device.period2_end_min).zfill(2)
+            self._time_valve_on = int(self._hysen_device.time_valve_on)
+#            _LOGGER.debug("[%s] State updated: hvac_mode=%s, fan_mode=%s, target_temp=%s, available=%s",
+#                          self._host, self._hvac_mode, self._fan_mode, self._target_temp, self._available)
