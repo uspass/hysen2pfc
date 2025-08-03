@@ -1,7 +1,7 @@
 {
   "domain": "hysen2pfc",
   "name": "Hysen 2 Pipe Fan Coil",
-  "version": "0.4.21",
+  "version": "0.4.22",
   "documentation": "https://github.com/uspass/hysen2pfc/blob/master/README.md",
   "issue_tracker": "https://github.com/uspass/hysen2pfc/issues",
   "iot_class": "local_polling",
