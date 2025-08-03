@@ -255,15 +255,15 @@ set_schedule:
     weekly_schedule:
       name: Weekly schedule
       description: New value weekly schedule.
-      default: 'manual'
-      example: 'manual'
+      default: 'Today'
+      example: 'Today'
       selector:
         select:
           options:
-            - 'manual'
-            - '12345'
-            - '123456'
-            - '1234567'
+            - 'Today'
+            - 'Workdays'
+            - 'Sixdays'
+            - 'Fullweek'
     period1_enabled:
       name: Period1 enable
       description: Enables first period.
