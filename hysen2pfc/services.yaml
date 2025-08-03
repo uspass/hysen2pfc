@@ -28,14 +28,15 @@ set_hvac_mode:
       name: Hvac mode
       description: New value for hvac mode.
       required: true
-      default: 'auto'
-      example: 'auto'
+      default: 'off'
+      example: 'off'
       selector:
         select:
           options:
             - 'off'
             - 'heat'
-            - 'auto'
+            - 'cool'
+            - 'fan_only'
 
 set_temperature:
   name: Set temperature
@@ -72,16 +73,16 @@ turn_off:
       
 set_hysteresis:
   name: Set hysteresis
-  description: Sets hysteresis.
+  description: Sets hysteresis for the Hysen 2 Pipe Fan Coil device. Can also be configured during device setup.
   target:
     entity:
       domain: climate
   fields:
     hysteresis:
       name: Hysteresis
-      description: New value for hysteresis.
+      description: New value for hysteresis (0.5°C or 1°C).
       required: true
-      default: '1'
+      default: '0.5'
       selector:
         select:
           options:
@@ -131,7 +132,7 @@ set_cooling_min_temp:
     entity:
       domain: climate
   fields:
-    max_temp:
+    min_temp:
       name: Cooling minimum temperature
       description: New value for cooling minimum admitted temperature.
       required: true
@@ -167,7 +168,7 @@ set_heating_min_temp:
     entity:
       domain: climate
   fields:
-    max_temp:
+    min_temp:
       name: Heating minimum temperature
       description: New value for heating minimum admitted temperature.
       required: true
@@ -233,7 +234,7 @@ set_time:
       default: '08:00:00'
       example: '08:00:00'
       selector:
-        text:
+        time:
     weekday:
       name: Weekday
       description: Set week day (1 - Monday, 7 Sunday).
@@ -276,14 +277,14 @@ set_schedule:
       default: '08:00'
       example: '08:00'
       selector:
-        text:
+        time:
     period1_end_time:
       name: Period1 end time
       description: Sets end time for the 1st period.
       default: '11:30'
       example: '11:30'
       selector:
-        text:
+        time:
     period2_enabled:
       name: Period2 enable
       description: Enables second period.
@@ -297,11 +298,31 @@ set_schedule:
       default: '12:30'
       example: '12:30'
       selector:
-        text:
+        time:
     period2_end_time:
       name: Period2 end time
       description: Sets end time for the 2nd period.
       default: '17:00'
       example: '17:00'
       selector:
-        text:
+        time:
+
+set_fan_mode:
+  name: Set fan mode
+  description: Sets the fan mode.
+  target:
+    entity:
+      domain: climate
+  fields:
+    fan_mode:
+      name: Fan mode
+      description: New value for fan mode.
+      required: true
+      default: 'auto'
+      selector:
+        select:
+          options:
+            - 'low'
+            - 'medium'
+            - 'high'
+            - 'auto'
