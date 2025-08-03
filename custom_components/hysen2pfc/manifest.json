@@ -10,7 +10,5 @@
   "codeowners": ["@uss"],
   "config_flow": true,
   "integration_type": "device",
-  "iot_class": "local_polling",
-"homeassistant": "2023.6.0",
-  "domains": ["climate", "binary_sensor"]
+  "iot_class": "local_polling"
 }
