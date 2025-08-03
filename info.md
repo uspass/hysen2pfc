@@ -1,0 +1,1 @@
+Hysen 2 Pipe Fan Coil controller integration for Home Assistant.

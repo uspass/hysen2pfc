@@ -1,0 +1,7 @@
+{
+  "name": "Hysen 2 Pipe Fan Coil",
+  "content_in_root": false,
+  "domain": "hysen2pfc",
+  "documentation": "https://github.com/uspass/hysen2pfc",
+  "render_readme": true
+}
