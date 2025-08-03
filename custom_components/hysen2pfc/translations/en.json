@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Hysen 2 Pipe Fan Coil Configuration",
+        "description": "Enter the details for your Hysen 2 Pipe Fan Coil device.",
+        "data": {
+          "host": "IP Address",
+          "mac": "MAC Address (XX:XX:XX:XX:XX:XX)",
+          "name": "Name",
+          "timeout": "Timeout (seconds)",
+          "sync_clock": "Sync Clock",
+          "sync_hour": "Sync Hour (0-23)"
+        }
+      }
+    },
+    "error": {
+      "connection_failed": "Failed to connect to the device. Please check the IP address and ensure the device is online.",
+      "invalid_mac": "Invalid MAC address format. Please use XX:XX:XX:XX:XX:XX.",
+      "invalid_ip": "Invalid IP address format. Please use XXX.XXX.XXX.XXX.",
+      "invalid_input": "Invalid input provided. Please check your entries."
+    }
+  }
+}
