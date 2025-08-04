@@ -153,11 +153,11 @@ DEVICE_HEATING_MIN_TEMP = HYSEN2PFC_HEATING_MIN_TEMP
 DEVICE_WEEKDAY_MONDAY   = HYSEN2PFC_WEEKDAY_MONDAY
 DEVICE_WEEKDAY_SUNDAY   = HYSEN2PFC_WEEKDAY_SUNDAY
 
-HVAC_MODES = [
-    HVACMode.OFF,
-    HVACMode.COOL,
-    HVACMode.HEAT,
-    HVACMode.FAN_ONLY
+ALLOWED_HVAC_MODES = [
+    HVACMode.OFF.value,
+    HVACMode.COOL.value,
+    HVACMode.HEAT.value,
+    HVACMode.FAN_ONLY.value
 ]
 
 HYSEN_KEY_LOCK_TO_HASS = {
@@ -708,7 +708,7 @@ class Hysen2PipeFanCoil(ClimateEntity):
         _LOGGER.debug("[%s] Attempting to set hvac_mode to '%s', current is_on: '%s', fan_mode: '%s'",
             self._host, hvac_mode, self.is_on, self._fan_mode)
 
-        if hvac_mode not in HVAC_MODES:
+        if hvac_mode not in ALLOWED_HVAC_MODES:
             _LOGGER.error("[%s] Error in async_set_hvac_mode. Unknown hvac mode '%s'.", self._host, hvac_mode)
             return
 
