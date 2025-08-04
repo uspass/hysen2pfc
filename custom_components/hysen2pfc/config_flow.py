@@ -15,7 +15,6 @@ from .const import (
     DEFAULT_TIMEOUT,
     DEFAULT_SYNC_CLOCK,
     DEFAULT_SYNC_HOUR,
-    HYSTERESIS_MODES,
 )
 
 class Hysen2PipeFanCoilConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -117,3 +116,4 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 }
             ),
         )
+
