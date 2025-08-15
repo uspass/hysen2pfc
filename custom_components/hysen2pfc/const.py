@@ -1,90 +1,273 @@
-# Constants for Hysen 2 Pipe Fan Coil Integration
+"""Constants for the Hysen 2 Pipe Fan Coil Controller integration."""
 
-# Domain and default name
+from hysen import (
+    Hysen2PipeFanCoilDevice,
+    HYSEN2PFC_KEY_LOCK_OFF,
+    HYSEN2PFC_KEY_LOCK_ON,
+    HYSEN2PFC_KEY_ALL_UNLOCKED,
+    HYSEN2PFC_KEY_POWER_UNLOCKED,
+    HYSEN2PFC_KEY_ALL_LOCKED,
+    HYSEN2PFC_POWER_OFF,
+    HYSEN2PFC_POWER_ON,
+    HYSEN2PFC_VALVE_OFF,
+    HYSEN2PFC_VALVE_ON,
+    HYSEN2PFC_HYSTERESIS_HALVE,
+    HYSEN2PFC_HYSTERESIS_WHOLE,
+    HYSEN2PFC_CALIBRATION_MIN,
+    HYSEN2PFC_CALIBRATION_MAX,
+    HYSEN2PFC_FAN_LOW,
+    HYSEN2PFC_FAN_MEDIUM,
+    HYSEN2PFC_FAN_HIGH,
+    HYSEN2PFC_FAN_AUTO,
+    HYSEN2PFC_MODE_FAN,
+    HYSEN2PFC_MODE_COOL,
+    HYSEN2PFC_MODE_HEAT,
+    HYSEN2PFC_FAN_CONTROL_ON,
+    HYSEN2PFC_FAN_CONTROL_OFF,
+    HYSEN2PFC_FROST_PROTECTION_OFF,
+    HYSEN2PFC_FROST_PROTECTION_ON,
+    HYSEN2PFC_SCHEDULE_TODAY,
+    HYSEN2PFC_SCHEDULE_12345,
+    HYSEN2PFC_SCHEDULE_123456,
+    HYSEN2PFC_SCHEDULE_1234567,
+    HYSEN2PFC_PERIOD_DISABLED,
+    HYSEN2PFC_PERIOD_ENABLED,
+    HYSEN2PFC_COOLING_MAX_TEMP,
+    HYSEN2PFC_COOLING_MIN_TEMP,
+    HYSEN2PFC_HEATING_MAX_TEMP,
+    HYSEN2PFC_HEATING_MIN_TEMP,
+    HYSEN2PFC_WEEKDAY_MONDAY,
+    HYSEN2PFC_WEEKDAY_SUNDAY
+)
+from homeassistant.const import (
+    Platform,
+    CONF_HOST, 
+    CONF_MAC, 
+    CONF_NAME, 
+    CONF_TIMEOUT,
+    ATTR_ENTITY_ID,
+    ATTR_TEMPERATURE,
+    PRECISION_WHOLE,
+    UnitOfTemperature,    
+    UnitOfTime,
+)
+from homeassistant.components.climate.const import (
+    ATTR_HVAC_MODE,
+    ATTR_FAN_MODE,
+    ATTR_PRESET_MODE,
+    HVACMode,
+    HVACAction,
+    FAN_LOW,
+    FAN_MEDIUM,
+    FAN_HIGH,
+    FAN_AUTO
+)
+
+# Integration domain
 DOMAIN = "hysen2pfc"
-DEFAULT_NAME = "Hysen 2 Pipe Fan Coil Thermostat"
-DATA_KEY = "climate.hysen2pfc"
 
-# Configuration keys specific to this integration
+# Platforms supported
+PLATFORMS = [
+    Platform.BINARY_SENSOR, 
+    Platform.BUTTON, 
+    Platform.CLIMATE, 
+    Platform.NUMBER, 
+    Platform.SELECT, 
+    Platform.SENSOR, 
+    Platform.SWITCH, 
+    Platform.TIME
+]
+
+# Configuration keys
 CONF_SYNC_CLOCK = "sync_clock"
 CONF_SYNC_HOUR = "sync_hour"
 
-# Default configuration values
+# Default values
+DEFAULT_NAME = "Hysen 2 Pipe Fan Coil"
 DEFAULT_TIMEOUT = 10
-DEFAULT_SYNC_CLOCK = True
+DEFAULT_SYNC_CLOCK = False
 DEFAULT_SYNC_HOUR = 4
+DEFAULT_CURRENT_TEMP = 22
+DEFAULT_TARGET_TEMP = 22
+DEFAULT_TARGET_TEMP_STEP = 1
+DEFAULT_MIN_TEMP = 10
+DEFAULT_MAX_TEMP = 40
+DEFAULT_CALIBRATION = 0
 
-# Device states
+# Data keys for coordinator
+DATA_KEY_FWVERSION = "fwversion"
+DATA_KEY_KEY_LOCK = "key_lock"
+DATA_KEY_VALVE_STATE = "valve_state"
+DATA_KEY_POWER_STATE = "power_state"
+DATA_KEY_HVAC_MODE = "operation_mode"
+DATA_KEY_FAN_MODE = "fan_mode"
+DATA_KEY_ROOM_TEMP = "room_temp"
+DATA_KEY_TARGET_TEMP = "target_temp"
+DATA_KEY_HYSTERESIS = "hysteresis"
+DATA_KEY_CALIBRATION = "calibration"
+DATA_KEY_COOLING_MAX_TEMP = "cooling_max_temp"
+DATA_KEY_COOLING_MIN_TEMP = "cooling_min_temp"
+DATA_KEY_HEATING_MAX_TEMP = "heating_max_temp"
+DATA_KEY_HEATING_MIN_TEMP = "heating_min_temp"
+DATA_KEY_FAN_CONTROL = "fan_control"
+DATA_KEY_FROST_PROTECTION = "frost_protection"
+DATA_KEY_CLOCK_HOUR = "clock_hour"
+DATA_KEY_CLOCK_MINUTE = "clock_minute"
+DATA_KEY_CLOCK_SECOND = "clock_second"
+DATA_KEY_CLOCK_WEEKDAY = "clock_weekday"
+DATA_KEY_PRESET_MODE = "schedule"
+DATA_KEY_SLOT1_START_ENABLE = "slot1_start_enable"
+DATA_KEY_SLOT1_START_TIME = "slot1_start_time"
+DATA_KEY_SLOT1_STOP_ENABLE = "slot1_stop_enable"
+DATA_KEY_SLOT1_STOP_TIME = "slot1_stop_time"
+DATA_KEY_SLOT2_START_ENABLE = "slot2_start_enable"
+DATA_KEY_SLOT2_START_TIME = "slot2_start_time"
+DATA_KEY_SLOT2_STOP_ENABLE = "slot2_stop_enable"
+DATA_KEY_SLOT2_STOP_TIME = "slot2_stop_time"
+DATA_KEY_TIME_VALVE_ON = "time_valve_on"
+
+# State values
 STATE_ON = "on"
 STATE_OFF = "off"
 STATE_OPEN = "open"
 STATE_CLOSED = "closed"
-STATE_ALL_UNLOCKED = "unlocked"
-STATE_POWER_UNLOCKED = "power_unlocked"
-STATE_ALL_LOCKED = "locked"
+STATE_UNLOCKED = "Unlocked"
+STATE_LOCKED_EXCEPT_POWER = "Locked Except Power"
+STATE_LOCKED = "Locked"
 STATE_HYSTERESIS_HALVE = "0.5"
-STATE_HYSTERESIS_WHOLE = "1"
+STATE_HYSTERESIS_WHOLE = "1.0"
+
+# HVAC modes
+HVAC_MODES = [HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT, HVACMode.FAN_ONLY]
+HVAC_MODES_NO_FAN = [HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT]
+
+# Fan modes
+FAN_MODES = [FAN_LOW, FAN_MEDIUM, FAN_HIGH, FAN_AUTO]
+FAN_MODES_MANUAL = [FAN_LOW, FAN_MEDIUM, FAN_HIGH]
+
+# Preset values
 PRESET_TODAY = "Today"
 PRESET_WORKDAYS = "Workdays"
 PRESET_SIXDAYS = "Sixdays"
 PRESET_FULLWEEK = "Fullweek"
 
-# Attribute keys
-ATTR_FWVERSION = "fwversion"
+# Preset modes
+PRESET_MODES = [PRESET_TODAY, PRESET_WORKDAYS, PRESET_SIXDAYS, PRESET_FULLWEEK]
+
+# Attribute names
+ATTR_FWVERSION = "firmware_version"
 ATTR_KEY_LOCK = "key_lock"
 ATTR_POWER_STATE = "power_state"
-ATTR_VALVE_STATE = "valve_state"
 ATTR_HYSTERESIS = "hysteresis"
 ATTR_CALIBRATION = "calibration"
-ATTR_LIMIT_TEMP = "temp"
 ATTR_COOLING_MAX_TEMP = "cooling_max_temp"
 ATTR_COOLING_MIN_TEMP = "cooling_min_temp"
 ATTR_HEATING_MAX_TEMP = "heating_max_temp"
 ATTR_HEATING_MIN_TEMP = "heating_min_temp"
+ATTR_MAX_TEMP = "max_temp"
+ATTR_MIN_TEMP = "min_temp"
 ATTR_FAN_CONTROL = "fan_control"
 ATTR_FROST_PROTECTION = "frost_protection"
-ATTR_TIME_NOW = "now"
-ATTR_DEVICE_TIME = "time"
-ATTR_DEVICE_WEEKDAY = "weekday"
-ATTR_WEEKLY_SCHEDULE = "weekly_schedule"
-ATTR_PERIOD1_ENABLED = "period1_enabled"
-ATTR_PERIOD1_START_TIME = "period1_start_time"
-ATTR_PERIOD1_END_TIME = "period1_end_time"
-ATTR_PERIOD2_ENABLED = "period2_enabled"
-ATTR_PERIOD2_START_TIME = "period2_start_time"
-ATTR_PERIOD2_END_TIME = "period2_end_time"
+ATTR_DEVICE_TIME = "time_now"
+ATTR_DEVICE_WEEKDAY = "device_weekday"
+ATTR_WEEKLY_PRESET = "weekly_schedule"
+ATTR_SLOT1_START_ENABLE = "slot1_start_enable"
+ATTR_SLOT1_START_TIME = "slot1_start_time"
+ATTR_SLOT1_STOP_ENABLE = "slot1_stop_enable"
+ATTR_SLOT1_STOP_TIME = "slot1_stop_time"
+ATTR_SLOT2_START_ENABLE = "slot2_start_enable"
+ATTR_SLOT2_START_TIME = "slot2_start_time"
+ATTR_SLOT2_STOP_ENABLE = "slot2_stop_enable"
+ATTR_SLOT2_STOP_TIME = "slot2_stop_time"
 ATTR_TIME_VALVE_ON = "time_valve_on"
+ATTR_VALVE_STATE = "valve_state"
 
 # Service names
+SERVICE_TURN_ON = "turn_on"
+SERVICE_TURN_OFF = "turn_off"
+SERVICE_SET_HVAC_MODE = "set_hvac_mode"
+SERVICE_SET_TEMPERATURE = "set_temperature"
 SERVICE_SET_KEY_LOCK = "set_key_lock"
 SERVICE_SET_HYSTERESIS = "set_hysteresis"
 SERVICE_SET_CALIBRATION = "set_calibration"
-SERVICE_SET_COOLING_MAX_TEMP = "set_cooling_max_temp"
-SERVICE_SET_COOLING_MIN_TEMP = "set_cooling_min_temp"
-SERVICE_SET_HEATING_MAX_TEMP = "set_heating_max_temp"
-SERVICE_SET_HEATING_MIN_TEMP = "set_heating_min_temp"
+SERVICE_SET_MAX_TEMP = "set_max_temp"
+SERVICE_SET_MIN_TEMP = "set_min_temp"
+SERVICE_SET_TIME = "set_time"
+SERVICE_SET_FAN_MODE = "set_fan_mode"
+SERVICE_SET_PRESET_MODE = "set_preset_mode"
+SERVICE_SET_SLOT1_START_ENABLE = "set_slot1_start_enable"
+SERVICE_SET_SLOT1_START_TIME = "set_slot1_start_time"
+SERVICE_SET_SLOT1_STOP_ENABLE = "set_slot1_stop_enable"
+SERVICE_SET_SLOT1_STOP_TIME = "set_slot1_stop_time"
+SERVICE_SET_SLOT2_START_ENABLE = "set_slot2_start_enable"
+SERVICE_SET_SLOT2_START_TIME = "set_slot2_start_time"
+SERVICE_SET_SLOT2_STOP_ENABLE = "set_slot2_stop_enable"
+SERVICE_SET_SLOT2_STOP_TIME = "set_slot2_stop_time"
 SERVICE_SET_FAN_CONTROL = "set_fan_control"
 SERVICE_SET_FROST_PROTECTION = "set_frost_protection"
-SERVICE_SET_TIME = "set_time"
-SERVICE_SET_SCHEDULE = "set_schedule"
 
-# Hysteresis modes
-HYSTERESIS_MODES = [
-    STATE_HYSTERESIS_HALVE,
-    STATE_HYSTERESIS_WHOLE
-]
+# Mappings
+POWER_STATE_HYSEN_TO_HASS = {
+    HYSEN2PFC_POWER_ON: STATE_ON,
+    HYSEN2PFC_POWER_OFF: STATE_OFF,
+}
+POWER_STATE_HASS_TO_HYSEN = {v: k for k, v in POWER_STATE_HYSEN_TO_HASS.items()}
 
-# Fan modes
-FAN_MODES = [
-    "low",
-    "medium",
-    "high",
-    "auto"
-]
+MODE_HYSEN_TO_HASS = {
+    HYSEN2PFC_MODE_COOL: HVACMode.COOL,
+    HYSEN2PFC_MODE_HEAT: HVACMode.HEAT,
+    HYSEN2PFC_MODE_FAN: HVACMode.FAN_ONLY,
+}
+MODE_HASS_TO_HYSEN = {v: k for k, v in MODE_HYSEN_TO_HASS.items()}
 
-# Fan modes for fan-only operation
-FAN_MODES_FAN_ONLY = [
-    "low",
-    "medium",
-    "high"
-]
+FAN_HYSEN_TO_HASS = {
+    HYSEN2PFC_FAN_LOW: FAN_LOW,
+    HYSEN2PFC_FAN_MEDIUM: FAN_MEDIUM,
+    HYSEN2PFC_FAN_HIGH: FAN_HIGH,
+    HYSEN2PFC_FAN_AUTO: FAN_AUTO,
+}
+FAN_HASS_TO_HYSEN = {v: k for k, v in FAN_HYSEN_TO_HASS.items()}
+
+SLOT_ENABLED_HYSEN_TO_HASS = {
+    HYSEN2PFC_PERIOD_DISABLED: False,
+    HYSEN2PFC_PERIOD_ENABLED: True,
+}
+SLOT_ENABLED_HASS_TO_HYSEN = {v: k for k, v in SLOT_ENABLED_HYSEN_TO_HASS.items()}
+
+PRESET_HYSEN_TO_HASS = {
+    HYSEN2PFC_SCHEDULE_TODAY: PRESET_TODAY,
+    HYSEN2PFC_SCHEDULE_12345: PRESET_WORKDAYS,
+    HYSEN2PFC_SCHEDULE_123456: PRESET_SIXDAYS,
+    HYSEN2PFC_SCHEDULE_1234567: PRESET_FULLWEEK,
+}
+PRESET_HASS_TO_HYSEN = {v: k for k, v in PRESET_HYSEN_TO_HASS.items()}
+
+HYSTERESIS_HYSEN_TO_HASS = {
+    HYSEN2PFC_HYSTERESIS_HALVE: STATE_HYSTERESIS_HALVE,
+    HYSEN2PFC_HYSTERESIS_WHOLE: STATE_HYSTERESIS_WHOLE,
+}
+HYSTERESIS_HASS_TO_HYSEN = {v: k for k, v in HYSTERESIS_HYSEN_TO_HASS.items()}
+
+FAN_CONTROL_HYSEN_TO_HASS = {
+    HYSEN2PFC_FAN_CONTROL_ON: STATE_ON,
+    HYSEN2PFC_FAN_CONTROL_OFF: STATE_OFF,
+}
+FAN_CONTROL_HASS_TO_HYSEN = {v: k for k, v in FAN_CONTROL_HYSEN_TO_HASS.items()}
+
+FROST_PROTECTION_HYSEN_TO_HASS = {
+    HYSEN2PFC_FROST_PROTECTION_ON: STATE_ON,
+    HYSEN2PFC_FROST_PROTECTION_OFF: STATE_OFF,
+}
+FROST_PROTECTION_HASS_TO_HYSEN = {v: k for k, v in FROST_PROTECTION_HYSEN_TO_HASS.items()}
+
+VALVE_STATE_HYSEN_TO_HASS = {
+    HYSEN2PFC_VALVE_ON  : STATE_OPEN,
+    HYSEN2PFC_VALVE_OFF : STATE_CLOSED,
+}
+
+KEY_LOCK_HYSEN_TO_HASS = {
+    HYSEN2PFC_KEY_ALL_UNLOCKED: STATE_UNLOCKED,
+    HYSEN2PFC_KEY_POWER_UNLOCKED: STATE_LOCKED_EXCEPT_POWER,
+    HYSEN2PFC_KEY_ALL_LOCKED: STATE_LOCKED,
+}
+KEY_LOCK_HASS_TO_HYSEN = {v: k for k, v in KEY_LOCK_HYSEN_TO_HASS.items()}
