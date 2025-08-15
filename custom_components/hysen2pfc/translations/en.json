@@ -1,24 +1,252 @@
 {
   "config": {
+    "error": {
+      "invalid_mac": "Invalid MAC address format. Please provide a valid 12-character hexadecimal MAC address (e.g., '00:1A:2B:3C:4D:5E').",
+      "device_already_configured": "A device with this MAC address is already configured.",
+      "unknown": "An unexpected error occurred during configuration."
+    },
     "step": {
       "user": {
-        "title": "Hysen 2 Pipe Fan Coil Configuration",
+        "title": "Configure Hysen 2 Pipe Fan Coil",
         "description": "Enter the details for your Hysen 2 Pipe Fan Coil device.",
         "data": {
-          "host": "IP Address",
-          "mac": "MAC Address (XX:XX:XX:XX:XX:XX)",
-          "name": "Name",
-          "timeout": "Timeout (seconds)",
-          "sync_clock": "Sync Clock",
-          "sync_hour": "Sync Hour (0-23)"
+          "host": "Host IP Address",
+          "mac": "MAC Address",
+          "name": "Device Name",
+          "timeout": "Connection Timeout (seconds)"
+        }
+      }
+    }
+  },
+  "errors": {
+    "missing_or_invalid_entity_id": "Missing or invalid entity_id ({entity_ids})",
+    "missing_or_invalid_hvac_mode": "Missing or invalid hvac_mode: {hvac_mode}",
+    "fan_only_with_auto_fan": "HVAC mode {hvac_mode} is not allowed when fan mode is auto. Set fan mode to low, medium, or high first.",
+    "invalid_hvac_mode": "Invalid HVAC mode: {hvac_mode}. Valid modes are: {valid_modes}.",
+    "missing_or_invalid_fan_mode": "Missing or invalid fan_mode: {fan_mode}",
+    "auto_fan_with_fan_only": "Fan mode {fan_mode} is not allowed when HVAC mode is fan_only. Set HVAC mode to off, heat, or cool first.",
+    "invalid_fan_mode": "Invalid fan mode: {fan_mode}. Valid fan modes are: {valid_modes}.",
+    "missing_or_invalid_temperature": "Missing or invalid temperature ({temperature}).",
+    "missing_or_invalid_preset_mode": "Missing or invalid preset mode: {preset_mode}.",
+    "invalid_entity_id_type": "Entity ID must be a string or a list of strings, got {entity_ids}",
+    "no_valid_entity_ids": "No valid entity IDs provided."
+  },
+  "services": {
+    "set_key_lock": {
+      "name": "Set Key Lock",
+      "description": "Sets the key lock mode for the device.",
+      "fields": {
+        "key_lock": {
+          "name": "Key Lock",
+          "description": "Set the key lock mode: 'Unlocked', 'Locked Except Power', or 'Locked'."
         }
       }
     },
-    "error": {
-      "connection_failed": "Failed to connect to the device. Please check the IP address and ensure the device is online.",
-      "invalid_mac": "Invalid MAC address format. Please use XX:XX:XX:XX:XX:XX.",
-      "invalid_ip": "Invalid IP address format. Please use XXX.XXX.XXX.XXX.",
-      "invalid_input": "Invalid input provided. Please check your entries."
+    "set_hvac_mode": {
+      "name": "Set HVAC Mode",
+      "description": "Sets the HVAC mode for the device.",
+      "fields": {
+        "hvac_mode": {
+          "name": "HVAC Mode",
+          "description": "Set the HVAC mode: 'off', 'heat', 'cool', or 'fan_only'."
+        }
+      }
+    },
+    "set_fan_mode": {
+      "name": "Set Fan Mode",
+      "description": "Sets the fan mode for the device.",
+      "fields": {
+        "fan_mode": {
+          "name": "Fan Mode",
+          "description": "Set the fan mode: 'low', 'medium', 'high', or 'auto'."
+        }
+      }
+    },
+    "set_preset_mode": {
+      "name": "Set Preset Mode",
+      "description": "Sets the preset mode for the device.",
+      "fields": {
+        "preset_mode": {
+          "name": "Preset Mode",
+          "description": "Set the preset mode: 'Today', 'Workdays', 'Sixdays', or 'Fullweek'."
+        }
+      }
+    },
+    "set_temperature": {
+      "name": "Set Temperature",
+      "description": "Sets the target temperature for the device.",
+      "fields": {
+        "temperature": {
+          "name": "Temperature",
+          "description": "Set the target temperature in Celsius (between 10 and 40°C)."
+        }
+      }
+    },
+    "turn_on": {
+      "name": "Turn On",
+      "description": "Turns the climate device on."
+    },
+    "turn_off": {
+      "name": "Turn Off",
+      "description": "Turns the climate device off."
+    },
+    "set_hysteresis": {
+      "name": "Set Hysteresis",
+      "description": "Sets the hysteresis for the device.",
+      "fields": {
+        "hysteresis": {
+          "name": "Hysteresis",
+          "description": "Set the hysteresis value: '0.5' or '1' (in °C)."
+        }
+      }
+    },
+    "set_calibration": {
+      "name": "Set Calibration",
+      "description": "Sets the temperature calibration for the device.",
+      "fields": {
+        "calibration": {
+          "name": "Calibration",
+          "description": "Set the calibration value (between -5.0 and 5.0, in 0.1°C steps)."
+        }
+      }
+    },
+    "set_max_temp": {
+      "name": "Set Maximum Temperature",
+      "description": "Sets the maximum allowed temperature based on HVAC mode.",
+      "fields": {
+        "max_temp": {
+          "name": "Maximum Temperature",
+          "description": "Set the maximum temperature (between 10 and 40°C, must be at least target temperature)."
+        }
+      }
+    },
+    "set_min_temp": {
+      "name": "Set Minimum Temperature",
+      "description": "Sets the minimum allowed temperature based on HVAC mode.",
+      "fields": {
+        "min_temp": {
+          "name": "Minimum Temperature",
+          "description": "Set the minimum temperature (between 10 and 40°C, must not exceed target temperature)."
+        }
+      }
+    },
+    "set_fan_control": {
+      "name": "Set Fan Control",
+      "description": "Sets the fan control mode for the device.",
+      "fields": {
+        "fan_control": {
+          "name": "Fan Control",
+          "description": "Set the fan control mode: 'on' or 'off'."
+        }
+      }
+    },
+    "set_frost_protection": {
+      "name": "Set Frost Protection",
+      "description": "Sets the frost protection mode for the device.",
+      "fields": {
+        "frost_protection": {
+          "name": "Frost Protection",
+          "description": "Set the frost protection mode: 'on' or 'off'."
+        }
+      }
+    },
+    "set_time": {
+      "name": "Set Time",
+      "description": "Sets the device time or synchronizes it with the system time.",
+      "fields": {
+        "now": {
+          "name": "Now",
+          "description": "Set the time to the current system time."
+        },
+        "time": {
+          "name": "Time",
+          "description": "Set a specific time in HH:MM:SS format."
+        },
+        "weekday": {
+          "name": "Weekday",
+          "description": "Set the weekday (1 = Monday, 7 = Sunday)."
+        }
+      }
+    },
+    "set_slot1_start_enable": {
+      "name": "Set Slot 1 Start Enable",
+      "description": "Sets the enable state for the first schedule slot's start time.",
+      "fields": {
+        "slot1_start_enable": {
+          "name": "Slot 1 Start Enable",
+          "description": "Set the slot 1 start enable state: 'on' or 'off'."
+        }
+      }
+    },
+    "set_slot1_stop_enable": {
+      "name": "Set Slot 1 Stop Enable",
+      "description": "Sets the enable state for the first schedule slot's stop time.",
+      "fields": {
+        "slot1_stop_enable": {
+          "name": "Slot 1 Stop Enable",
+          "description": "Set the slot 1 stop enable state: 'on' or 'off'."
+        }
+      }
+    },
+    "set_slot2_start_enable": {
+      "name": "Set Slot 2 Start Enable",
+      "description": "Sets the enable state for the second schedule slot's start time.",
+      "fields": {
+        "slot2_start_enable": {
+          "name": "Slot 2 Start Enable",
+          "description": "Set the slot 2 start enable state: 'on' or 'off'."
+        }
+      }
+    },
+    "set_slot2_stop_enable": {
+      "name": "Set Slot 2 Stop Enable",
+      "description": "Sets the enable state for the second schedule slot's stop time.",
+      "fields": {
+        "slot2_stop_enable": {
+          "name": "Slot 2 Stop Enable",
+          "description": "Set the slot 2 stop enable state: 'on' or 'off'."
+        }
+      }
+    },
+    "set_slot1_start_time": {
+      "name": "Set Slot 1 Start Time",
+      "description": "Sets the start time for the first schedule slot.",
+      "fields": {
+        "slot1_start_time": {
+          "name": "Slot 1 Start Time",
+          "description": "Set the start time for the first period in HH:MM format."
+        }
+      }
+    },
+    "set_slot1_stop_time": {
+      "name": "Set Slot 1 Stop Time",
+      "description": "Sets the stop time for the first schedule slot.",
+      "fields": {
+        "slot1_stop_time": {
+          "name": "Slot 1 Stop Time",
+          "description": "Set the stop time for the first period in HH:MM format."
+        }
+      }
+    },
+    "set_slot2_start_time": {
+      "name": "Set Slot 2 Start Time",
+      "description": "Sets the start time for the second schedule slot.",
+      "fields": {
+        "slot2_start_time": {
+          "name": "Slot 2 Start Time",
+          "description": "Set the start time for the second period in HH:MM format."
+        }
+      }
+    },
+    "set_slot2_stop_time": {
+      "name": "Set Slot 2 Stop Time",
+      "description": "Sets the stop time for the second schedule slot.",
+      "fields": {
+        "slot2_stop_time": {
+          "name": "Slot 2 Stop Time",
+          "description": "Set the stop time for the second period in HH:MM format."
+        }
+      }
     }
   }
 }
