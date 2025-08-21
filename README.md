@@ -221,7 +221,7 @@ For a full list of services, refer to `services.yaml` in the repository.
 
 ## Requirements
 
-- Home Assistant 2023.11 or later.
+- Home Assistant 2025.1 or later.
 - Python package: `hysen==0.4.12` (automatically installed).
 
 ## Known Limitations
