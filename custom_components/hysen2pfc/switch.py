@@ -1,11 +1,18 @@
 """
-Support for Hysen 2 Pipe Fan Coil Controller switches.
+Switch platform for the Hysen 2 Pipe Fan Coil integration.
 
-This module provides switches for fan control, frost protection, and schedule slots.
+Provides six switch entities:
+- HysenFanControlSwitch       — enables/disables the fan in heating/cooling mode.
+- HysenFrostProtectionSwitch  — enables frost protection (minimum temperature hold).
+- HysenSlot1StartEnableSwitch — activates the start trigger for schedule slot 1.
+- HysenSlot1StopEnableSwitch  — activates the stop trigger for schedule slot 1.
+- HysenSlot2StartEnableSwitch — activates the start trigger for schedule slot 2.
+- HysenSlot2StopEnableSwitch  — activates the stop trigger for schedule slot 2.
+
+All switches also register entity services for automation use.
 """
 
 import logging
-import asyncio
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
@@ -26,7 +33,6 @@ from .const import (
     ATTR_SLOT1_STOP_ENABLE,
     ATTR_SLOT2_START_ENABLE,
     ATTR_SLOT2_STOP_ENABLE,
-    SERVICE_SET_FROST_PROTECTION,
     SERVICE_SET_FAN_CONTROL,
     SERVICE_SET_FROST_PROTECTION,
     SERVICE_SET_SLOT1_START_ENABLE,
@@ -145,12 +151,6 @@ class HysenFanControlSwitch(HysenEntity, SwitchEntity):
             self.coordinator.device.set_fan_control,
             FAN_CONTROL_HASS_TO_HYSEN[STATE_ON],
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off.
@@ -167,12 +167,6 @@ class HysenFanControlSwitch(HysenEntity, SwitchEntity):
             self.coordinator.device.set_fan_control,
             FAN_CONTROL_HASS_TO_HYSEN[STATE_OFF],
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_fan_control(self, fan_control):
         """Set the fan control state.
@@ -189,12 +183,6 @@ class HysenFanControlSwitch(HysenEntity, SwitchEntity):
             self.coordinator.device.set_fan_control,
             FAN_CONTROL_HASS_TO_HYSEN[fan_control],
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
 class HysenFrostProtectionSwitch(HysenEntity, SwitchEntity):
     """Representation of a Hysen Frost Protection switch.
@@ -245,12 +233,6 @@ class HysenFrostProtectionSwitch(HysenEntity, SwitchEntity):
             self.coordinator.device.set_frost_protection,
             FROST_PROTECTION_HASS_TO_HYSEN[STATE_ON],
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off.
@@ -267,12 +249,6 @@ class HysenFrostProtectionSwitch(HysenEntity, SwitchEntity):
             self.coordinator.device.set_frost_protection,
             FROST_PROTECTION_HASS_TO_HYSEN[STATE_OFF],
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_frost_protection(self, frost_protection):
         """Set the frost protection state.
@@ -289,12 +265,6 @@ class HysenFrostProtectionSwitch(HysenEntity, SwitchEntity):
             self.coordinator.device.set_frost_protection,
             FROST_PROTECTION_HASS_TO_HYSEN[frost_protection],
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
 class HysenSlot1StartEnableSwitch(HysenEntity, SwitchEntity):
     """Representation of a Hysen Slot 1 Start Enable switch.
@@ -319,7 +289,7 @@ class HysenSlot1StartEnableSwitch(HysenEntity, SwitchEntity):
         Returns:
             bool: True if slot 1 start is enabled, False otherwise.
         """
-        return self.coordinator.data.get(DATA_KEY_SLOT1_START_ENABLE) == STATE_ON
+        return self.coordinator.data.get(DATA_KEY_SLOT1_START_ENABLE) is True
 
     @property
     def icon(self):
@@ -352,12 +322,6 @@ class HysenSlot1StartEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off.
@@ -381,12 +345,6 @@ class HysenSlot1StartEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_slot1_start_enable(self, slot1_start_enable):
         """Set the slot 1 start enable state.
@@ -410,12 +368,6 @@ class HysenSlot1StartEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
 class HysenSlot1StopEnableSwitch(HysenEntity, SwitchEntity):
     """Representation of a Hysen Slot 1 Stop Enable switch.
@@ -440,7 +392,7 @@ class HysenSlot1StopEnableSwitch(HysenEntity, SwitchEntity):
         Returns:
             bool: True if slot 1 stop is enabled, False otherwise.
         """
-        return self.coordinator.data.get(DATA_KEY_SLOT1_STOP_ENABLE) == STATE_ON
+        return self.coordinator.data.get(DATA_KEY_SLOT1_STOP_ENABLE) is True
 
     @property
     def icon(self):
@@ -473,12 +425,6 @@ class HysenSlot1StopEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off.
@@ -502,12 +448,6 @@ class HysenSlot1StopEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_slot1_stop_enable(self, slot1_stop_enable):
         """Set the slot 1 stop enable state.
@@ -531,12 +471,6 @@ class HysenSlot1StopEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
 class HysenSlot2StartEnableSwitch(HysenEntity, SwitchEntity):
     """Representation of a Hysen Slot 2 Start Enable switch.
@@ -561,7 +495,7 @@ class HysenSlot2StartEnableSwitch(HysenEntity, SwitchEntity):
         Returns:
             bool: True if slot 2 start is enabled, False otherwise.
         """
-        return self.coordinator.data.get(DATA_KEY_SLOT2_START_ENABLE) == STATE_ON
+        return self.coordinator.data.get(DATA_KEY_SLOT2_START_ENABLE) is True
 
     @property
     def icon(self):
@@ -594,12 +528,6 @@ class HysenSlot2StartEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off.
@@ -623,12 +551,6 @@ class HysenSlot2StartEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_slot2_start_enable(self, slot2_start_enable):
         """Set the slot 2 start enable state.
@@ -652,12 +574,6 @@ class HysenSlot2StartEnableSwitch(HysenEntity, SwitchEntity):
             None,
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
 class HysenSlot2StopEnableSwitch(HysenEntity, SwitchEntity):
     """Representation of a Hysen Slot 2 Stop Enable switch.
@@ -682,7 +598,7 @@ class HysenSlot2StopEnableSwitch(HysenEntity, SwitchEntity):
         Returns:
             bool: True if slot 2 stop is enabled, False otherwise.
         """
-        return self.coordinator.data.get(DATA_KEY_SLOT2_STOP_ENABLE) == STATE_ON
+        return self.coordinator.data.get(DATA_KEY_SLOT2_STOP_ENABLE) is True
 
     @property
     def icon(self):
@@ -715,12 +631,6 @@ class HysenSlot2StopEnableSwitch(HysenEntity, SwitchEntity):
             SLOT_ENABLED_HASS_TO_HYSEN[True],
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off.
@@ -744,12 +654,6 @@ class HysenSlot2StopEnableSwitch(HysenEntity, SwitchEntity):
             SLOT_ENABLED_HASS_TO_HYSEN[False],
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_slot2_stop_enable(self, slot2_stop_enable):
         """Set the slot 2 stop enable state.
@@ -773,9 +677,3 @@ class HysenSlot2StopEnableSwitch(HysenEntity, SwitchEntity):
             SLOT_ENABLED_HASS_TO_HYSEN[slot2_stop_enable == STATE_ON],
             None, None,
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
