@@ -1,147 +1,280 @@
 """
-Configuration flow for Hysen 2 Pipe Fan Coil Controller.
+Config flow for the Hysen 2 Pipe Fan Coil integration.
 
-This module handles the setup and discovery of Hysen devices.
+Setup flow (user-initiated)
+---------------------------
+Step 1 — user      : User enters the device IP address and a display name.
+                     On submission the integration attempts to auto-detect the
+                     MAC address by sending a dummy UDP packet to the IP (which
+                     forces an ARP resolution) and then reading /proc/net/arp.
+Step 2 — mac       : Shown only when auto-detection fails. User enters the
+                     MAC address manually (found on device label or DHCP list).
+Step 3 — confirm   : Shows detected/entered host and MAC. User can adjust the
+                     display name. On confirmation, initialises the device and
+                     creates the config entry.
+
+Setup flow (zeroconf)
+---------------------
+If the device advertises itself via mDNS, async_step_zeroconf extracts the host
+and MAC directly from the discovery info, then jumps to the confirm step.
+
+Options flow
+------------
+Hysen2pfcOptionsFlowHandler exposes timeout, poll interval (update_interval),
+clock sync enable (sync_clock) and sync hour (sync_hour). Saving options
+triggers a full config entry reload so that the coordinator and device are
+recreated with the new settings.
 """
 
 import logging
 import binascii
+import socket
+import time as _time
 import voluptuous as vol
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from hysen import Hysen2PipeFanCoilDevice
 from homeassistant import config_entries
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from .const import (
-    DOMAIN, 
-    CONF_HOST, 
-    CONF_MAC, 
-    CONF_NAME, 
+    DOMAIN,
+    CONF_HOST,
+    CONF_MAC,
+    CONF_NAME,
     CONF_TIMEOUT,
-    DEFAULT_NAME, 
+    CONF_SYNC_CLOCK,
+    CONF_SYNC_HOUR,
+    CONF_UPDATE_INTERVAL,
+    DEFAULT_NAME,
     DEFAULT_TIMEOUT,
     DEFAULT_SYNC_CLOCK,
     DEFAULT_SYNC_HOUR,
+    DEFAULT_UPDATE_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-DATA_SCHEMA = vol.Schema({
+# Initial form: only IP and name — MAC is auto-detected
+DATA_SCHEMA_HOST = vol.Schema({
+    vol.Required(CONF_HOST): str,
+    vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
+    vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): int,
+})
+
+# Shown only when MAC auto-detection fails
+DATA_SCHEMA_MAC = vol.Schema({
+    vol.Required(CONF_MAC): str,
+})
+
+# Full manual schema (fallback / zeroconf confirm)
+DATA_SCHEMA_FULL = vol.Schema({
     vol.Required(CONF_HOST): str,
     vol.Required(CONF_MAC): str,
     vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
     vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): int,
 })
 
-class Hysen2pfcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Hysen 2 Pipe Fan Coil Controller.
 
-    Manages user-initiated and zeroconf-based configuration of Hysen devices.
+def _get_mac_for_ip(host: str) -> Optional[str]:
+    """Detect the MAC address for a given IP.
+
+    Sends a UDP packet to the target IP to ensure it appears in the ARP
+    cache, then reads /proc/net/arp to retrieve the MAC address.
+
+    Returns the MAC string in 'aa:bb:cc:dd:ee:ff' format, or None.
     """
+    # Trigger ARP resolution by sending a dummy UDP packet to the host
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(1.0)
+        sock.sendto(b"\x00", (host, 80))
+        sock.close()
+    except Exception:
+        pass
+
+    # Give the kernel a moment to populate the ARP table
+    _time.sleep(0.5)
+
+    # Read /proc/net/arp for the specific IP
+    try:
+        with open("/proc/net/arp") as f:
+            for line in f.readlines()[1:]:  # skip header line
+                parts = line.split()
+                if len(parts) >= 4 and parts[0] == host:
+                    mac = parts[3]
+                    if mac and mac != "00:00:00:00:00:00":
+                        _LOGGER.debug("ARP lookup: %s → %s", host, mac)
+                        return mac
+    except Exception as exc:
+        _LOGGER.debug("ARP lookup failed for %s: %s", host, exc)
+
+    _LOGGER.debug("No ARP entry found for %s", host)
+    return None
+
+
+class Hysen2pfcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Hysen 2 Pipe Fan Coil Controller."""
 
     VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLL
 
     def __init__(self):
-        """Initialize the Hysen configuration flow.
-
-        Sets up the initial state for the config flow, including storage for
-        discovered device information.
-        """
+        """Initialize the config flow."""
         self._discovered_device: Dict[str, Any] = {}
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
-        """Handle the initial step of user-initiated configuration.
+        """Show the initial form: IP address and device name.
 
-        Validates user input, checks for existing configurations, and initializes
-        the Hysen device.
-
-        Args:
-            user_input: Dictionary containing user-provided configuration data.
-
-        Returns:
-            Dict: The result of the configuration step (form, abort, or create entry).
+        On submit, tries to auto-detect the MAC address via ARP.
+        If auto-detection succeeds, proceeds directly to confirmation.
+        If it fails, moves to async_step_mac for manual MAC entry.
         """
         errors: Dict[str, str] = {}
-        if user_input is not None:
-            # Normalize MAC address
-            mac = user_input[CONF_MAC].replace(":", "").lower()
-            try:
-                mac_bytes = binascii.unhexlify(mac)
-            except binascii.Error as e:
-                _LOGGER.error("Invalid MAC address %s: %s", user_input[CONF_MAC], e)
-                errors["base"] = "invalid_mac"
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=DATA_SCHEMA,
-                    errors=errors,
-                )
 
-            # Check for existing config entry with the same MAC
+        if user_input is not None:
+            host = user_input[CONF_HOST].strip()
+            name = user_input.get(CONF_NAME, DEFAULT_NAME)
+            timeout = user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+
+            # Check for existing entry with same host
             for entry in self._async_current_entries():
-                if entry.data.get(CONF_MAC) == user_input[CONF_MAC]:
+                if entry.data.get(CONF_HOST) == host:
                     return self.async_abort(reason="already_configured")
 
-            try:
-                # Initialize device (connection is handled by constructor)
-                device = Hysen2PipeFanCoilDevice(
-                    host=(user_input[CONF_HOST], 80),
-                    mac=mac_bytes,
-                    timeout=user_input[CONF_TIMEOUT],
-                    sync_clock=DEFAULT_SYNC_CLOCK,
-                    sync_hour=DEFAULT_SYNC_HOUR,
-                )
-                _LOGGER.debug("Initialized device at %s (MAC: %s)", user_input[CONF_HOST], user_input[CONF_MAC])
-            except Exception as e:
-                _LOGGER.error("Failed to initialize device at %s: %s", user_input[CONF_HOST], e)
-                errors["base"] = "cannot_connect"
-            else:
-                # Set unique ID based on MAC address (store as colon-separated for registry)
-                await self.async_set_unique_id(user_input[CONF_MAC])
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=user_input[CONF_NAME],
-                    data={
-                        CONF_HOST: user_input[CONF_HOST],
-                        CONF_MAC: user_input[CONF_MAC],
-                        CONF_NAME: user_input[CONF_NAME],
-                        CONF_TIMEOUT: user_input[CONF_TIMEOUT],
-                    },
-                )
+            self._discovered_device = {
+                CONF_HOST: host,
+                CONF_NAME: name,
+                CONF_TIMEOUT: timeout,
+            }
+
+            # Try to auto-detect MAC
+            mac = await self.hass.async_add_executor_job(_get_mac_for_ip, host)
+            if mac:
+                self._discovered_device[CONF_MAC] = mac
+                _LOGGER.debug("Auto-detected MAC %s for %s", mac, host)
+                return await self.async_step_confirm()
+
+            # MAC not found — ask user
+            _LOGGER.debug("MAC not found for %s, asking user", host)
+            return await self.async_step_mac()
 
         return self.async_show_form(
             step_id="user",
-            data_schema=DATA_SCHEMA,
+            data_schema=DATA_SCHEMA_HOST,
             errors=errors,
         )
 
+    async def async_step_mac(self, user_input: Optional[Dict[str, Any]] = None):
+        """Ask for MAC address when auto-detection fails."""
+        errors: Dict[str, str] = {}
+
+        if user_input is not None:
+            mac = user_input[CONF_MAC].strip()
+            # Normalize and validate
+            mac_clean = mac.replace(":", "").replace("-", "").lower()
+            try:
+                binascii.unhexlify(mac_clean)
+            except binascii.Error:
+                errors["base"] = "invalid_mac"
+                return self.async_show_form(
+                    step_id="mac",
+                    data_schema=DATA_SCHEMA_MAC,
+                    errors=errors,
+                    description_placeholders={"host": self._discovered_device[CONF_HOST]},
+                )
+            mac_colon = ":".join(mac_clean[i:i+2] for i in range(0, 12, 2))
+            self._discovered_device[CONF_MAC] = mac_colon
+            return await self.async_step_confirm()
+
+        return self.async_show_form(
+            step_id="mac",
+            data_schema=DATA_SCHEMA_MAC,
+            errors=errors,
+            description_placeholders={"host": self._discovered_device[CONF_HOST]},
+        )
+
+    async def async_step_confirm(self, user_input: Optional[Dict[str, Any]] = None):
+        """Show discovered/entered device for confirmation before creating entry."""
+        errors: Dict[str, str] = {}
+        host = self._discovered_device[CONF_HOST]
+        mac = self._discovered_device[CONF_MAC]
+        name = self._discovered_device.get(CONF_NAME, DEFAULT_NAME)
+        timeout = self._discovered_device.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+
+        if user_input is not None:
+            # User confirmed (optionally changed name)
+            name = user_input.get(CONF_NAME, name)
+            mac_clean = mac.replace(":", "").lower()
+            try:
+                mac_bytes = binascii.unhexlify(mac_clean)
+            except binascii.Error:
+                errors["base"] = "invalid_mac"
+                return self.async_show_form(
+                    step_id="confirm",
+                    data_schema=vol.Schema({vol.Optional(CONF_NAME, default=name): str}),
+                    errors=errors,
+                    description_placeholders={"host": host, "mac": mac},
+                )
+
+            for entry in self._async_current_entries():
+                if entry.data.get(CONF_MAC) == mac:
+                    return self.async_abort(reason="already_configured")
+
+            try:
+                device = Hysen2PipeFanCoilDevice(
+                    host=(host, 80),
+                    mac=mac_bytes,
+                    timeout=timeout,
+                    sync_clock=DEFAULT_SYNC_CLOCK,
+                    sync_hour=DEFAULT_SYNC_HOUR,
+                )
+                _LOGGER.debug("Initialized device at %s (MAC: %s)", host, mac)
+            except Exception as e:
+                _LOGGER.error("Failed to initialize device at %s: %s", host, e)
+                errors["base"] = "cannot_connect"
+                return self.async_show_form(
+                    step_id="confirm",
+                    data_schema=vol.Schema({vol.Optional(CONF_NAME, default=name): str}),
+                    errors=errors,
+                    description_placeholders={"host": host, "mac": mac},
+                )
+
+            await self.async_set_unique_id(mac)
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(
+                title=name,
+                data={
+                    CONF_HOST: host,
+                    CONF_MAC: mac,
+                    CONF_NAME: name,
+                    CONF_TIMEOUT: timeout,
+                },
+            )
+
+        # Show confirmation form — user can change name only
+        return self.async_show_form(
+            step_id="confirm",
+            data_schema=vol.Schema({
+                vol.Optional(CONF_NAME, default=name): str,
+            }),
+            description_placeholders={"host": host, "mac": mac},
+        )
+
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo):
-        """Handle zeroconf discovery of a Hysen device.
-
-        Processes zeroconf discovery data to initialize a configuration flow.
-
-        Args:
-            discovery_info: Zeroconf discovery information for the device.
-
-        Returns:
-            Dict: The result of the discovery step (abort or proceed to confirmation).
-        """
+        """Handle zeroconf discovery of a Hysen device."""
         host = discovery_info.host
         mac = discovery_info.properties.get("mac", "").replace(":", "").lower()
         if not mac:
             return self.async_abort(reason="no_mac")
 
-        # Normalize MAC address
         try:
-            mac_bytes = binascii.unhexlify(mac)
+            binascii.unhexlify(mac)
         except binascii.Error as e:
             _LOGGER.error("Invalid MAC address from zeroconf %s: %s", mac, e)
             return self.async_abort(reason="invalid_mac")
 
-        # Store colon-separated MAC for config entry
         mac_colon = ":".join(mac[i:i+2] for i in range(0, 12, 2))
 
-        # Check for existing config entry with the same MAC
         for entry in self._async_current_entries():
             if entry.data.get(CONF_MAC) == mac_colon:
                 return self.async_abort(reason="already_configured")
@@ -153,108 +286,50 @@ class Hysen2pfcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_TIMEOUT: DEFAULT_TIMEOUT,
         }
 
-        # Set unique ID based on MAC address
         await self.async_set_unique_id(mac_colon)
         self._abort_if_unique_id_configured()
-
-        return await self.async_step_zeroconf_confirm()
-
-    async def async_step_zeroconf_confirm(self, user_input: Optional[Dict[str, Any]] = None):
-        """Handle confirmation step for user-confirmed devices.
-
-        Allows the user to confirm or modify discovered device settings.
-
-        Args:
-            user_input: Dictionary containing user-confirmed or modified configuration data.
-
-        Returns:
-            Dict: The result of the confirmation step (form or create entry).
-        """
-        errors: Dict[str, str] = {}
-        if user_input is not None:
-            try:
-                mac_bytes = binascii.unhexlify(self._discovered_device[CONF_MAC].replace(":", ""))
-                device = Hysen2PipeFanCoilDevice(
-                    host=(self._discovered_device[CONF_HOST], 80),
-                    mac=mac_bytes,
-                    timeout=self._discovered_device[CONF_TIMEOUT],
-                    sync_clock=DEFAULT_SYNC_CLOCK,
-                    sync_hour=DEFAULT_SYNC_HOUR,
-                )
-                _LOGGER.debug("Initialized device at %s (MAC: %s)", self._discovered_device[CONF_HOST], self._discovered_device[CONF_MAC])
-            except Exception as e:
-                _LOGGER.error("Failed to initialize device at %s: %s", self._discovered_device[CONF_HOST], e)
-                errors["base"] = "cannot_connect"
-            else:
-                return self.async_create_entry(
-                    title=user_input.get(CONF_NAME, self._discovered_device[CONF_NAME]),
-                    data={
-                        CONF_HOST: self._discovered_device[CONF_HOST],
-                        CONF_MAC: self._discovered_device[CONF_MAC],
-                        CONF_NAME: user_input.get(CONF_NAME, self._discovered_device[CONF_NAME]),
-                        CONF_TIMEOUT: self._discovered_device[CONF_TIMEOUT],
-                    },
-                )
-
-        return self.async_show_form(
-            step_id="zeroconf_confirm",
-            data_schema=vol.Schema({
-                vol.Optional(CONF_NAME, default=self._discovered_device[CONF_NAME]): str,
-            }),
-            errors=errors,
-            description_placeholders={
-                "host": self._discovered_device[CONF_HOST],
-                "mac": self._discovered_device[CONF_MAC],
-            },
-        )
+        return await self.async_step_confirm()
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        """Get the options flow handler for the Hysen configuration.
-
-        Args:
-            config_entry: The configuration entry for the device.
-
-        Returns:
-            Hysen2pfcOptionsFlowHandler: The options flow handler instance.
-        """
+        """Get the options flow handler."""
         return Hysen2pfcOptionsFlowHandler(config_entry)
 
-class Hysen2pfcOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options flow for Hysen 2 Pipe Fan Coil Controller.
 
-    Manages configuration options for an existing Hysen device.
-    """
+class Hysen2pfcOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options flow for Hysen 2 Pipe Fan Coil Controller."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry):
-        """Initialize the options flow handler.
-
-        Args:
-            config_entry: The configuration entry for the device.
-        """
+        """Initialize the options flow handler."""
         self.config_entry = config_entry
 
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None):
-        """Manage device options configuration.
-
-        Allows the user to modify options such as timeout.
-
-        Args:
-            user_input: Dictionary containing user-provided option updates.
-
-        Returns:
-            Dict: The result of the options configuration step (form or create entry).
-        """
+        """Manage device options configuration."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
+
+        opts = self.config_entry.options
+        data = self.config_entry.data
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
                 vol.Optional(
                     CONF_TIMEOUT,
-                    default=self.config_entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
+                    default=opts.get(CONF_TIMEOUT, data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
                 ): int,
+                vol.Optional(
+                    CONF_UPDATE_INTERVAL,
+                    default=opts.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL),
+                ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
+                vol.Optional(
+                    CONF_SYNC_CLOCK,
+                    default=opts.get(CONF_SYNC_CLOCK, DEFAULT_SYNC_CLOCK),
+                ): bool,
+                vol.Optional(
+                    CONF_SYNC_HOUR,
+                    default=opts.get(CONF_SYNC_HOUR, DEFAULT_SYNC_HOUR),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
             }),
         )
