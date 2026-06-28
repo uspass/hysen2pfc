@@ -1,0 +1,286 @@
+{
+  "config": {
+    "error": {
+      "invalid_mac": "Formato di indirizzo MAC non valido. Fornire un indirizzo MAC esadecimale valido di 12 caratteri (ad es., '00:1A:2B:3C:4D:5E').",
+      "device_already_configured": "Un dispositivo con questo indirizzo MAC è già configurato.",
+      "unknown": "Si è verificato un errore imprevisto durante la configurazione."
+    },
+    "step": {
+      "user": {
+        "title": "Configura Hysen 2 Pipe Fan Coil",
+        "description": "Inserisci l'indirizzo IP del dispositivo Hysen. L'indirizzo MAC verrà rilevato automaticamente.",
+        "data": {
+          "host": "Indirizzo IP host",
+          "name": "Nome dispositivo",
+          "timeout": "Timeout connessione (secondi)"
+        }
+      },
+      "mac": {
+        "title": "Inserisci indirizzo MAC",
+        "description": "Impossibile rilevare automaticamente l'indirizzo MAC per {host}. Inseriscilo manualmente (etichetta del dispositivo o elenco DHCP del router).",
+        "data": {
+          "mac": "Indirizzo MAC"
+        }
+      },
+      "confirm": {
+        "title": "Conferma dispositivo Hysen",
+        "description": "Configura il dispositivo su **{host}** (MAC: `{mac}`). Puoi modificare il nome di seguito.",
+        "data": {
+          "name": "Nome dispositivo"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Conferma dispositivo Hysen",
+        "description": "Configura il dispositivo trovato su {host} (MAC: {mac}).",
+        "data": {
+          "name": "Nome dispositivo"
+        }
+      }
+    }
+  },
+  "errors": {
+    "missing_or_invalid_entity_id": "entity_id mancante o non valido ({entity_ids})",
+    "missing_or_invalid_hvac_mode": "hvac_mode mancante o non valido: {hvac_mode}",
+    "fan_only_with_auto_fan": "La modalità HVAC {hvac_mode} non è consentita quando il ventilatore è in modalità automatica. Impostare prima il ventilatore su bassa, media o alta velocità.",
+    "invalid_hvac_mode": "Modalità HVAC non valida: {hvac_mode}. Modalità valide: {valid_modes}.",
+    "missing_or_invalid_fan_mode": "fan_mode mancante o non valido: {fan_mode}",
+    "auto_fan_with_fan_only": "La modalità ventilatore {fan_mode} non è consentita con la modalità HVAC fan_only. Impostare prima la modalità HVAC su off, heat o cool.",
+    "invalid_fan_mode": "Modalità ventilatore non valida: {fan_mode}. Modalità valide: {valid_modes}.",
+    "missing_or_invalid_temperature": "Temperatura mancante o non valida ({temperature}).",
+    "missing_or_invalid_preset_mode": "Modalità preset mancante o non valida: {preset_mode}.",
+    "invalid_entity_id_type": "L'ID entità deve essere una stringa o un elenco di stringhe, ottenuto {entity_ids}",
+    "no_valid_entity_ids": "Nessun ID entità valido fornito.",
+    "invalid_preset_mode": "Modalità preset non valida: {preset_mode}. Modalità valide: {valid_modes}.",
+    "invalid_temperature": "La temperatura {temperature}°C è fuori intervallo. Intervallo valido: da {min_temp} a {max_temp}°C.",
+    "invalid_temperature_type": "Valore di temperatura non valido: {temperature} (atteso un numero).",
+    "missing_temperature_range": "L'intervallo di temperatura del dispositivo non è configurato.",
+    "temperature_out_of_range": "La temperatura {temperature}°C è fuori intervallo per {entity_id}. Intervallo valido: da {min_temp} a {max_temp}°C.",
+    "cooling_max_below_target": "La temperatura massima di raffreddamento non può essere inferiore alla temperatura target attuale.",
+    "cooling_max_below_min": "La temperatura massima di raffreddamento non può essere inferiore alla temperatura minima di raffreddamento.",
+    "heating_max_below_target": "La temperatura massima di riscaldamento non può essere inferiore alla temperatura target attuale.",
+    "heating_max_below_min": "La temperatura massima di riscaldamento non può essere inferiore alla temperatura minima di riscaldamento.",
+    "cooling_min_above_target": "La temperatura minima di raffreddamento non può essere superiore alla temperatura target attuale.",
+    "cooling_min_above_max": "La temperatura minima di raffreddamento non può essere superiore alla temperatura massima di raffreddamento.",
+    "heating_min_above_target": "La temperatura minima di riscaldamento non può essere superiore alla temperatura target attuale.",
+    "heating_min_above_max": "La temperatura minima di riscaldamento non può essere superiore alla temperatura massima di riscaldamento.",
+    "invalid_hvac_mode_for_temp": "Impossibile impostare il limite di temperatura in modalità {hvac_mode}."
+  },
+  "services": {
+    "set_key_lock": {
+      "name": "Imposta blocco tasti",
+      "description": "Imposta la modalità di blocco tasti del dispositivo.",
+      "fields": {
+        "key_lock": {
+          "name": "Blocco tasti",
+          "description": "Modalità: 'Unlocked', 'Locked Except Power' o 'Locked'."
+        }
+      }
+    },
+    "set_hvac_mode": {
+      "name": "Imposta modalità HVAC",
+      "description": "Imposta la modalità HVAC del dispositivo.",
+      "fields": {
+        "hvac_mode": {
+          "name": "Modalità HVAC",
+          "description": "Modalità: 'off', 'heat', 'cool' o 'fan_only'."
+        }
+      }
+    },
+    "set_fan_mode": {
+      "name": "Imposta modalità ventilatore",
+      "description": "Imposta la modalità del ventilatore.",
+      "fields": {
+        "fan_mode": {
+          "name": "Modalità ventilatore",
+          "description": "Modalità: 'low', 'medium', 'high' o 'auto'."
+        }
+      }
+    },
+    "set_preset_mode": {
+      "name": "Imposta modalità preset",
+      "description": "Imposta la modalità preset del dispositivo.",
+      "fields": {
+        "preset_mode": {
+          "name": "Modalità preset",
+          "description": "Modalità: 'Today', 'Workdays', 'Sixdays' o 'Fullweek'."
+        }
+      }
+    },
+    "set_temperature": {
+      "name": "Imposta temperatura",
+      "description": "Imposta la temperatura target del dispositivo.",
+      "fields": {
+        "temperature": {
+          "name": "Temperatura",
+          "description": "Temperatura target in Celsius (tra 10 e 40°C)."
+        }
+      }
+    },
+    "turn_on": {
+      "name": "Accendi",
+      "description": "Accende il dispositivo climatico."
+    },
+    "turn_off": {
+      "name": "Spegni",
+      "description": "Spegne il dispositivo climatico."
+    },
+    "set_hysteresis": {
+      "name": "Imposta isteresi",
+      "description": "Imposta il valore di isteresi del dispositivo.",
+      "fields": {
+        "hysteresis": {
+          "name": "Isteresi",
+          "description": "Valore: '0.5' o '1' (in °C)."
+        }
+      }
+    },
+    "set_calibration": {
+      "name": "Imposta calibrazione",
+      "description": "Imposta la calibrazione del sensore di temperatura.",
+      "fields": {
+        "calibration": {
+          "name": "Calibrazione",
+          "description": "Valore di calibrazione (tra -5.0 e 5.0, passi da 0.1°C)."
+        }
+      }
+    },
+    "set_max_temp": {
+      "name": "Imposta temperatura massima",
+      "description": "Imposta la temperatura massima consentita in base alla modalità HVAC.",
+      "fields": {
+        "max_temp": {
+          "name": "Temperatura massima",
+          "description": "Temperatura massima (tra 10 e 40°C, deve essere almeno pari alla temperatura target)."
+        }
+      }
+    },
+    "set_min_temp": {
+      "name": "Imposta temperatura minima",
+      "description": "Imposta la temperatura minima consentita in base alla modalità HVAC.",
+      "fields": {
+        "min_temp": {
+          "name": "Temperatura minima",
+          "description": "Temperatura minima (tra 10 e 40°C, non deve superare la temperatura target)."
+        }
+      }
+    },
+    "set_fan_control": {
+      "name": "Controllo ventilatore",
+      "description": "Abilita o disabilita il controllo del ventilatore.",
+      "fields": {
+        "fan_control": {
+          "name": "Controllo ventilatore",
+          "description": "Stato: 'on' o 'off'."
+        }
+      }
+    },
+    "set_frost_protection": {
+      "name": "Protezione antigelo",
+      "description": "Abilita o disabilita la protezione antigelo.",
+      "fields": {
+        "frost_protection": {
+          "name": "Protezione antigelo",
+          "description": "Stato: 'on' o 'off'."
+        }
+      }
+    },
+    "set_time": {
+      "name": "Imposta ora",
+      "description": "Imposta l'orologio interno del dispositivo.",
+      "fields": {
+        "now": {
+          "name": "Adesso",
+          "description": "Sincronizza con l'ora di sistema."
+        },
+        "time": {
+          "name": "Ora",
+          "description": "Ora specifica nel formato HH:MM:SS."
+        },
+        "weekday": {
+          "name": "Giorno della settimana",
+          "description": "Giorno della settimana (1 = Lunedì, 7 = Domenica)."
+        }
+      }
+    },
+    "set_slot1_start_enable": {
+      "name": "Abilita inizio slot 1",
+      "description": "Abilita l'ora di inizio del primo slot programmato.",
+      "fields": {
+        "slot1_start_enable": {
+          "name": "Abilitazione inizio slot 1",
+          "description": "Stato: 'on' o 'off'."
+        }
+      }
+    },
+    "set_slot1_stop_enable": {
+      "name": "Abilita fine slot 1",
+      "description": "Abilita l'ora di fine del primo slot programmato.",
+      "fields": {
+        "slot1_stop_enable": {
+          "name": "Abilitazione fine slot 1",
+          "description": "Stato: 'on' o 'off'."
+        }
+      }
+    },
+    "set_slot2_start_enable": {
+      "name": "Abilita inizio slot 2",
+      "description": "Abilita l'ora di inizio del secondo slot programmato.",
+      "fields": {
+        "slot2_start_enable": {
+          "name": "Abilitazione inizio slot 2",
+          "description": "Stato: 'on' o 'off'."
+        }
+      }
+    },
+    "set_slot2_stop_enable": {
+      "name": "Abilita fine slot 2",
+      "description": "Abilita l'ora di fine del secondo slot programmato.",
+      "fields": {
+        "slot2_stop_enable": {
+          "name": "Abilitazione fine slot 2",
+          "description": "Stato: 'on' o 'off'."
+        }
+      }
+    },
+    "set_slot1_start_time": {
+      "name": "Ora inizio slot 1",
+      "description": "Imposta l'ora di inizio del primo slot.",
+      "fields": {
+        "slot1_start_time": {
+          "name": "Ora inizio slot 1",
+          "description": "Formato HH:MM."
+        }
+      }
+    },
+    "set_slot1_stop_time": {
+      "name": "Ora fine slot 1",
+      "description": "Imposta l'ora di fine del primo slot.",
+      "fields": {
+        "slot1_stop_time": {
+          "name": "Ora fine slot 1",
+          "description": "Formato HH:MM."
+        }
+      }
+    },
+    "set_slot2_start_time": {
+      "name": "Ora inizio slot 2",
+      "description": "Imposta l'ora di inizio del secondo slot.",
+      "fields": {
+        "slot2_start_time": {
+          "name": "Ora inizio slot 2",
+          "description": "Formato HH:MM."
+        }
+      }
+    },
+    "set_slot2_stop_time": {
+      "name": "Ora fine slot 2",
+      "description": "Imposta l'ora di fine del secondo slot.",
+      "fields": {
+        "slot2_stop_time": {
+          "name": "Ora fine slot 2",
+          "description": "Formato HH:MM."
+        }
+      }
+    }
+  }
+}
