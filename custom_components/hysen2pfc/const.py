@@ -1,4 +1,10 @@
-"""Constants for the Hysen 2 Pipe Fan Coil Controller integration."""
+"""
+Constants for the Hysen 2 Pipe Fan Coil Controller integration.
+
+Centralises all constants, mappings and configuration defaults used
+across the integration's modules so that they can be imported from a
+single location.
+"""
 
 from hysen import (
     Hysen2PipeFanCoilDevice,
@@ -37,18 +43,19 @@ from hysen import (
     HYSEN2PFC_HEATING_MAX_TEMP,
     HYSEN2PFC_HEATING_MIN_TEMP,
     HYSEN2PFC_WEEKDAY_MONDAY,
-    HYSEN2PFC_WEEKDAY_SUNDAY
+    HYSEN2PFC_WEEKDAY_SUNDAY,
 )
 from homeassistant.const import (
     Platform,
-    CONF_HOST, 
-    CONF_MAC, 
-    CONF_NAME, 
+    CONF_HOST,
+    CONF_MAC,
+    CONF_NAME,
     CONF_TIMEOUT,
     ATTR_ENTITY_ID,
     ATTR_TEMPERATURE,
     PRECISION_WHOLE,
-    UnitOfTemperature,    
+    PRECISION_TENTHS,
+    UnitOfTemperature,
     UnitOfTime,
 )
 from homeassistant.components.climate.const import (
@@ -60,33 +67,44 @@ from homeassistant.components.climate.const import (
     FAN_LOW,
     FAN_MEDIUM,
     FAN_HIGH,
-    FAN_AUTO
+    FAN_AUTO,
 )
 
-# Integration domain
+# ---------------------------------------------------------------------------
+# Integration identity
+# ---------------------------------------------------------------------------
+
 DOMAIN = "hysen2pfc"
 
-# Platforms supported
+# HA platform types this integration registers
 PLATFORMS = [
-    Platform.BINARY_SENSOR, 
-    Platform.BUTTON, 
-    Platform.CLIMATE, 
-    Platform.NUMBER, 
-    Platform.SELECT, 
-    Platform.SENSOR, 
-    Platform.SWITCH, 
-    Platform.TIME
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.CLIMATE,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.TIME,
 ]
 
-# Configuration keys
-CONF_SYNC_CLOCK = "sync_clock"
-CONF_SYNC_HOUR = "sync_hour"
+# ---------------------------------------------------------------------------
+# Configuration keys (used in config entries and options flow)
+# ---------------------------------------------------------------------------
 
+CONF_SYNC_CLOCK = "sync_clock"       # Whether to auto-sync device clock
+CONF_SYNC_HOUR = "sync_hour"         # Hour of day at which clock is synced
+CONF_UPDATE_INTERVAL = "update_interval"  # Coordinator poll interval (seconds)
+
+# ---------------------------------------------------------------------------
 # Default values
+# ---------------------------------------------------------------------------
+
 DEFAULT_NAME = "Hysen 2 Pipe Fan Coil"
-DEFAULT_TIMEOUT = 10
+DEFAULT_TIMEOUT = 10          # UDP socket timeout in seconds
 DEFAULT_SYNC_CLOCK = False
-DEFAULT_SYNC_HOUR = 4
+DEFAULT_SYNC_HOUR = 4         # Sync at 04:00 by default to avoid peak hours
+DEFAULT_UPDATE_INTERVAL = 30  # Poll device every 30 seconds
 DEFAULT_CURRENT_TEMP = 22
 DEFAULT_TARGET_TEMP = 22
 DEFAULT_TARGET_TEMP_STEP = 1
@@ -94,17 +112,26 @@ DEFAULT_MIN_TEMP = 10
 DEFAULT_MAX_TEMP = 40
 DEFAULT_CALIBRATION = 0
 
-# Data keys for coordinator
+# ---------------------------------------------------------------------------
+# Coordinator data keys
+# Keys used in the dict returned by HysenCoordinator._async_update_data
+# ---------------------------------------------------------------------------
+
 DATA_KEY_FWVERSION = "fwversion"
 DATA_KEY_KEY_LOCK = "key_lock"
 DATA_KEY_VALVE_STATE = "valve_state"
 DATA_KEY_POWER_STATE = "power_state"
-DATA_KEY_HVAC_MODE = "operation_mode"
+DATA_KEY_HVAC_MODE = "hvac_mode"
+DATA_KEY_HVAC_MODES = "hvac_modes"      # Dynamic list shown in climate UI
 DATA_KEY_FAN_MODE = "fan_mode"
-DATA_KEY_ROOM_TEMP = "room_temp"
+DATA_KEY_FAN_MODES = "fan_modes"        # Dynamic list shown in climate UI
+DATA_KEY_HVAC_ACTION = "hvac_action"
+DATA_KEY_CURRENT_TEMP = "room_temp"
 DATA_KEY_TARGET_TEMP = "target_temp"
 DATA_KEY_HYSTERESIS = "hysteresis"
 DATA_KEY_CALIBRATION = "calibration"
+DATA_KEY_MIN_TEMP = "min_temp"          # Mode-dependent min setpoint
+DATA_KEY_MAX_TEMP = "max_temp"          # Mode-dependent max setpoint
 DATA_KEY_COOLING_MAX_TEMP = "cooling_max_temp"
 DATA_KEY_COOLING_MIN_TEMP = "cooling_min_temp"
 DATA_KEY_HEATING_MAX_TEMP = "heating_max_temp"
@@ -126,7 +153,10 @@ DATA_KEY_SLOT2_STOP_ENABLE = "slot2_stop_enable"
 DATA_KEY_SLOT2_STOP_TIME = "slot2_stop_time"
 DATA_KEY_TIME_VALVE_ON = "time_valve_on"
 
-# State values
+# ---------------------------------------------------------------------------
+# State string values
+# ---------------------------------------------------------------------------
+
 STATE_ON = "on"
 STATE_OFF = "off"
 STATE_OPEN = "open"
@@ -137,24 +167,36 @@ STATE_LOCKED = "Locked"
 STATE_HYSTERESIS_HALVE = "0.5"
 STATE_HYSTERESIS_WHOLE = "1.0"
 
-# HVAC modes
+# ---------------------------------------------------------------------------
+# HVAC mode lists
+# The coordinator picks the appropriate list based on device state so that
+# the climate card only shows the modes the user can actually select.
+# ---------------------------------------------------------------------------
+
 HVAC_MODES = [HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT, HVACMode.FAN_ONLY]
-HVAC_MODES_NO_FAN = [HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT]
+HVAC_MODES_NO_FAN = [HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT]  # FAN_ONLY excluded when fan=auto
+HVAC_MODES_COOL = [HVACMode.COOL]      # Shown when device is off in cooling mode
+HVAC_MODES_HEAT = [HVACMode.HEAT]      # Shown when device is off in heating mode
+HVAC_MODES_FAN_ONLY = [HVACMode.FAN_ONLY]  # Shown when device is off in fan-only mode
 
-# Fan modes
+# Fan mode lists
 FAN_MODES = [FAN_LOW, FAN_MEDIUM, FAN_HIGH, FAN_AUTO]
-FAN_MODES_MANUAL = [FAN_LOW, FAN_MEDIUM, FAN_HIGH]
+FAN_MODES_MANUAL = [FAN_LOW, FAN_MEDIUM, FAN_HIGH]  # Auto excluded in fan-only mode
 
-# Preset values
+# ---------------------------------------------------------------------------
+# Preset (schedule) values
+# ---------------------------------------------------------------------------
+
 PRESET_TODAY = "Today"
 PRESET_WORKDAYS = "Workdays"
 PRESET_SIXDAYS = "Sixdays"
 PRESET_FULLWEEK = "Fullweek"
-
-# Preset modes
 PRESET_MODES = [PRESET_TODAY, PRESET_WORKDAYS, PRESET_SIXDAYS, PRESET_FULLWEEK]
 
-# Attribute names
+# ---------------------------------------------------------------------------
+# Extra state attribute names (exposed on climate entity)
+# ---------------------------------------------------------------------------
+
 ATTR_FWVERSION = "firmware_version"
 ATTR_KEY_LOCK = "key_lock"
 ATTR_POWER_STATE = "power_state"
@@ -168,7 +210,7 @@ ATTR_MAX_TEMP = "max_temp"
 ATTR_MIN_TEMP = "min_temp"
 ATTR_FAN_CONTROL = "fan_control"
 ATTR_FROST_PROTECTION = "frost_protection"
-ATTR_DEVICE_TIME = "time_now"
+ATTR_DEVICE_TIME = "device_time"    # Service field name for set_time — matches services.yaml
 ATTR_DEVICE_WEEKDAY = "device_weekday"
 ATTR_WEEKLY_PRESET = "weekly_schedule"
 ATTR_SLOT1_START_ENABLE = "slot1_start_enable"
@@ -182,7 +224,10 @@ ATTR_SLOT2_STOP_TIME = "slot2_stop_time"
 ATTR_TIME_VALVE_ON = "time_valve_on"
 ATTR_VALVE_STATE = "valve_state"
 
-# Service names
+# ---------------------------------------------------------------------------
+# Service names (must match services.yaml keys)
+# ---------------------------------------------------------------------------
+
 SERVICE_TURN_ON = "turn_on"
 SERVICE_TURN_OFF = "turn_off"
 SERVICE_SET_HVAC_MODE = "set_hvac_mode"
@@ -206,7 +251,10 @@ SERVICE_SET_SLOT2_STOP_TIME = "set_slot2_stop_time"
 SERVICE_SET_FAN_CONTROL = "set_fan_control"
 SERVICE_SET_FROST_PROTECTION = "set_frost_protection"
 
-# Mappings
+# ---------------------------------------------------------------------------
+# Bidirectional value mappings between Hysen library constants and HA strings
+# ---------------------------------------------------------------------------
+
 POWER_STATE_HYSEN_TO_HASS = {
     HYSEN2PFC_POWER_ON: STATE_ON,
     HYSEN2PFC_POWER_OFF: STATE_OFF,
@@ -228,6 +276,7 @@ FAN_HYSEN_TO_HASS = {
 }
 FAN_HASS_TO_HYSEN = {v: k for k, v in FAN_HYSEN_TO_HASS.items()}
 
+# Slot enable values are booleans in HA, raw integers in the Hysen library
 SLOT_ENABLED_HYSEN_TO_HASS = {
     HYSEN2PFC_PERIOD_DISABLED: False,
     HYSEN2PFC_PERIOD_ENABLED: True,
@@ -261,8 +310,8 @@ FROST_PROTECTION_HYSEN_TO_HASS = {
 FROST_PROTECTION_HASS_TO_HYSEN = {v: k for k, v in FROST_PROTECTION_HYSEN_TO_HASS.items()}
 
 VALVE_STATE_HYSEN_TO_HASS = {
-    HYSEN2PFC_VALVE_ON  : STATE_OPEN,
-    HYSEN2PFC_VALVE_OFF : STATE_CLOSED,
+    HYSEN2PFC_VALVE_ON: STATE_OPEN,
+    HYSEN2PFC_VALVE_OFF: STATE_CLOSED,
 }
 
 KEY_LOCK_HYSEN_TO_HASS = {
