@@ -1,11 +1,14 @@
 """
-Support for Hysen 2 Pipe Fan Coil Controller select entities.
+Select platform for the Hysen 2 Pipe Fan Coil integration.
 
-This module provides select entities for setting the hysteresis and key lock values.
+Provides two select entities:
+- HysenHysteresisSelect  — temperature deadband (0.5 °C or 1.0 °C).
+- HysenKeyLockSelect     — panel key lock mode (unlocked / power-only / fully locked).
+
+Each entity also registers a matching entity service for automation use.
 """
 
 import logging
-import asyncio
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
@@ -103,12 +106,6 @@ class HysenHysteresisSelect(HysenEntity, SelectEntity):
             self.coordinator.device.set_hysteresis,
             HYSTERESIS_HASS_TO_HYSEN[option],
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_hysteresis(self, hysteresis):
         """Set the hysteresis state (for service calls).
@@ -176,12 +173,6 @@ class HysenKeyLockSelect(HysenEntity, SelectEntity):
             self.coordinator.device.set_key_lock,
             KEY_LOCK_HASS_TO_HYSEN[option],
         )
-        if success:
-            # Delay to allow device to stabilize
-            await asyncio.sleep(0.2)
-            # Force an immediate update to fetch the latest device state
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_key_lock(self, key_lock):
         """Set the key lock state (for service calls).
