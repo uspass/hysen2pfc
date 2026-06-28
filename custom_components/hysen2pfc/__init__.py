@@ -1,10 +1,32 @@
 """
-Hysen 2 Pipe Fan Coil Controller integration for Home Assistant.
+Hysen 2 Pipe Fan Coil Controller — Home Assistant integration.
 
-This integration supports binary sensor, climate, sensor, and switch entities for Hysen devices.
+Entry points
+------------
+async_setup          Called once when the integration is first loaded. Initialises
+                     hass.data[DOMAIN] and registers the four custom climate services
+                     (set_hvac_mode, set_temperature, set_fan_mode, set_preset_mode).
+                     Services are guarded with has_service() so they are registered
+                     exactly once even when multiple devices are configured.
+
+async_setup_entry    Called for each config entry (one per physical device). Creates
+                     a Hysen2PipeFanCoilDevice, builds the HysenCoordinator, performs
+                     the first refresh, then forwards setup to all platform modules.
+                     Also registers an options-update listener so that changes made
+                     in the options flow trigger a full entry reload.
+
+async_unload_entry   Unloads all platforms and removes the device from hass.data.
+                     When the last device is removed the custom services are also
+                     unregistered.
+
+Custom services
+---------------
+The standard HA climate services (climate.set_hvac_mode etc.) do not respect the
+dynamic mode lists that the coordinator provides. These custom services replicate
+that behaviour with the same validation logic used by the climate entity, so that
+automations see the same constraints as the UI.
 """
 
-import asyncio
 import logging
 import binascii
 import voluptuous as vol
@@ -20,15 +42,23 @@ from .const import (
     CONF_MAC, 
     CONF_NAME, 
     CONF_TIMEOUT,
+    CONF_SYNC_CLOCK,
+    CONF_SYNC_HOUR,
+    CONF_UPDATE_INTERVAL,
     DEFAULT_NAME, 
     DEFAULT_TIMEOUT,
+    DEFAULT_MIN_TEMP,
+    DEFAULT_MAX_TEMP,
     DEFAULT_SYNC_CLOCK,
     DEFAULT_SYNC_HOUR,
+    DEFAULT_UPDATE_INTERVAL,
     ATTR_ENTITY_ID,
     ATTR_HVAC_MODE,
     ATTR_TEMPERATURE,
     ATTR_FAN_MODE,
     ATTR_PRESET_MODE,
+    ATTR_MIN_TEMP,
+    ATTR_MAX_TEMP,
     HVAC_MODES,
     HVAC_MODES_NO_FAN,
     FAN_AUTO,
@@ -76,7 +106,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     host = entry.data[CONF_HOST]
     mac = entry.data[CONF_MAC]
     name = entry.data.get(CONF_NAME, DEFAULT_NAME)
-    timeout = entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+    hass.data.setdefault(DOMAIN, {})
+    timeout = entry.options.get(CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT))
+    sync_clock = entry.options.get(CONF_SYNC_CLOCK, DEFAULT_SYNC_CLOCK)
+    sync_hour = entry.options.get(CONF_SYNC_HOUR, DEFAULT_SYNC_HOUR)
+    update_interval = entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
 
     _LOGGER.info("Starting setup for device '%s' (MAC: %s, Host: %s, Entry ID: %s)", name, mac, host, entry.entry_id)
 
@@ -86,15 +120,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             host=(host, 80),
             mac=mac_bytes,
             timeout=timeout,
-            sync_clock=DEFAULT_SYNC_CLOCK,
-            sync_hour=DEFAULT_SYNC_HOUR,
+            sync_clock=sync_clock,
+            sync_hour=sync_hour,
         )
         _LOGGER.debug("Initialized Hysen device at %s (MAC: %s)", host, mac)
     except Exception as e:
         _LOGGER.error("Failed to initialize Hysen device at %s: %s", host, e)
         raise ConfigEntryNotReady from e
 
-    coordinator = HysenCoordinator(hass, device, host)
+    coordinator = HysenCoordinator(hass, device, host, entry, update_interval=update_interval)
     await coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = {
@@ -104,7 +138,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         "timeout": timeout,
         "coordinator": coordinator,
     }
-    _LOGGER.debug("Registered Hysen device with ID %s for MAC %s", entry.entry_id, mac)
+
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
     # Register custom service for set_hvac_mode
     async def async_set_hvac_mode_handler(service_call):
@@ -144,7 +179,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("Missing or invalid entity_id (%s)", 
                           entity_ids)
             raise ServiceValidationError(
-                f"Hysen: Missing or invalid entity_id ({entity_ids})",
+                f"Missing or invalid entity_id ({entity_ids})",
                 translation_domain=DOMAIN,
                 translation_key="missing_or_invalid_entity_id",
             )
@@ -152,7 +187,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("Missing or invalid hvac_mode: (%s)", 
                           hvac_mode)
             raise ServiceValidationError(
-                f"Hysen: Missing or invalid hvac_mode {hvac_mode}",
+                f"Missing or invalid hvac_mode {hvac_mode}",
                 translation_domain=DOMAIN,
                 translation_key="missing_or_invalid_hvac_mode",
             )
@@ -164,7 +199,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("entity_id must be a string or list of strings, got %s (type: %s)", 
                           entity_ids, type(entity_ids))
             raise ServiceValidationError(
-                f"Hysen: entity_id must be a string or list of strings, got {entity_ids}",
+                f"entity_id must be a string or list of strings, got {entity_ids}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_entity_id_type",
             )
@@ -188,7 +223,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     _LOGGER.error("[%s] HVAC mode %s is not allowed when fan mode is auto. Valid fan modes are: %s", 
                                   entity_id, hvac_mode, ", ".join(FAN_MODES_MANUAL))
                     raise ServiceValidationError(
-                        f"Hysen: HVAC mode {hvac_mode} is not allowed when fan mode is auto. Set fan mode to low, medium, or high first.",
+                        f"HVAC mode {hvac_mode} is not allowed when fan mode is auto. Set fan mode to low, medium, or high first.",
                         translation_domain=DOMAIN,
                         translation_key="fan_only_with_auto_fan",
                     )
@@ -198,7 +233,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         if not valid_entity_ids:
             _LOGGER.error("No valid entity IDs provided")
             raise ServiceValidationError(
-                "Hysen: No valid entity IDs provided",
+                "No valid entity IDs provided",
                 translation_domain=DOMAIN,
                 translation_key="no_valid_entity_ids",
             )
@@ -217,28 +252,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 _LOGGER.error("Failed to set hvac mode for %s: %s", entity_id, e)
                 raise
 
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_HVAC_MODE,
-        async_set_hvac_mode_handler,
-        schema=vol.Schema({
-            vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
-            vol.Required(ATTR_HVAC_MODE): cv.string,  # Validate as string, check in async_set_hvac_mode
-        })
-    )
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_HVAC_MODE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_HVAC_MODE,
+            async_set_hvac_mode_handler,
+            schema=vol.Schema({
+                vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+                vol.Required(ATTR_HVAC_MODE): cv.string,  # Validate as string, check in async_set_hvac_mode
+            })
+        )
 
     # Register custom service for set_temperature
     async def async_set_temperature_handler(service_call):
         """Handle the hysen2pfc.set_temperature service call.
 
         Processes the service call to set the target temperature for Hysen climate entities.
-        Validates the provided entity_id(s) and temperature, then calls the climate.set_temperature
-        service for each valid entity.
+        Validates the provided entity_id(s) and temperature against the entity's min_temp and max_temp,
+        then calls the climate.set_temperature service for each valid entity.
 
         Args:
             service_call (homeassistant.core.ServiceCall): The service call object containing
                 the domain, service, data, and context of the call. Expects 'entity_id' (string or list)
-                and 'temperature' (int) in service_call.data.
+                and 'temperature' (float) in service_call.data.
 
         Raises:
             ServiceValidationError: If entity_id or temperature is missing, invalid, or if no valid entity IDs are provided.
@@ -265,7 +301,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("Missing or invalid entity_id (%s)", 
                           entity_ids)
             raise ServiceValidationError(
-                f"Hysen: Missing or invalid entity_id ({entity_ids})",
+                f"Missing or invalid entity_id ({entity_ids})",
                 translation_domain=DOMAIN,
                 translation_key="missing_or_invalid_entity_id",
             )
@@ -273,7 +309,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("Missing or invalid temperature (%s)", 
                           temperature)
             raise ServiceValidationError(
-                f"Hysen: Missing or invalid temperature ({temperature})",
+                f"Missing or invalid temperature ({temperature})",
                 translation_domain=DOMAIN,
                 translation_key="missing_or_invalid_temperature",
             )
@@ -285,12 +321,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("entity_id must be a string or list of strings, got %s (type: %s)", 
                           entity_ids, type(entity_ids))
             raise ServiceValidationError(
-                f"Hysen: entity_id must be a string or list of strings, got {entity_ids}",
+                f"entity_id must be a string or list of strings, got {entity_ids}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_entity_id_type",
             )
         
-        # Validate each entity_id
+        # Validate each entity_id and temperature
         valid_entity_ids = []
         for entity_id in entity_ids:
             if not isinstance(entity_id, str):
@@ -299,12 +335,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             if not entity_id.startswith("climate."):
                 _LOGGER.error("Invalid entity_id: %s does not belong to climate domain", entity_id)
                 continue
-            valid_entity_ids.append(entity_id)
+
+            # Check temperature range
+            entity_state = hass.states.get(entity_id)
+            if not entity_state:
+                _LOGGER.error("Entity %s not found", entity_id)
+                continue
+            min_temp = entity_state.attributes.get(ATTR_MIN_TEMP, DEFAULT_MIN_TEMP)
+            max_temp = entity_state.attributes.get(ATTR_MAX_TEMP, DEFAULT_MAX_TEMP)
+            try:
+                temp_value = float(temperature)
+                if temp_value < min_temp or temp_value > max_temp:
+                    _LOGGER.error(
+                        "[%s] Temperature %s is out of range. Valid range is %s to %s",
+                        entity_id, temp_value, min_temp, max_temp
+                    )
+                    raise ServiceValidationError(
+                        f"Temperature {temp_value} is out of range for {entity_id}. Valid range is {min_temp} to {max_temp}.",
+                        translation_domain=DOMAIN,
+                        translation_key="temperature_out_of_range",
+                    )
+                valid_entity_ids.append(entity_id)
+            except (TypeError, ValueError):
+                _LOGGER.error("Invalid temperature type: %s (expected a number)", temperature)
+                raise ServiceValidationError(
+                    f"Invalid temperature type: {temperature} (expected a number)",
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_temperature_type",
+                )
         
         if not valid_entity_ids:
-            _LOGGER.error("No valid entity IDs provided.")
+            _LOGGER.error("No valid entity IDs provided")
             raise ServiceValidationError(
-                "Hysen: No valid entity IDs provided.",
+                "No valid entity IDs provided",
                 translation_domain=DOMAIN,
                 translation_key="no_valid_entity_ids",
             )
@@ -315,7 +378,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 await hass.services.async_call(
                     'climate',
                     SERVICE_SET_TEMPERATURE,
-                    {'entity_id': entity_id, 'temperature': temperature},
+                    {'entity_id': entity_id, 'temperature': temp_value},
                     context=service_call.context
                 )
                 _LOGGER.debug("Called climate.set_temperature for %s with temperature %s", entity_id, temperature)
@@ -323,15 +386,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 _LOGGER.error("Failed to set temperature for %s: %s", entity_id, e)
                 raise
 
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_TEMPERATURE,
-        async_set_temperature_handler,
-        schema=vol.Schema({
-            vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
-            vol.Required(ATTR_TEMPERATURE): vol.All(vol.Coerce(int), vol.Range(min=10, max=40))
-        })
-    )
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_TEMPERATURE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_TEMPERATURE,
+            async_set_temperature_handler,
+            schema=vol.Schema({
+                vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+                vol.Required(ATTR_TEMPERATURE): cv.positive_float,  # Accept positive float, validation in async_set_temperature
+            })
+        )
 
     # Register custom service for set_fan_mode
     async def async_set_fan_mode_handler(service_call):
@@ -371,7 +435,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("Missing or invalid entity_id (%s)", 
                           entity_ids)
             raise ServiceValidationError(
-                f"Hysen: Missing or invalid entity_id ({entity_ids})",
+                f"Missing or invalid entity_id ({entity_ids})",
                 translation_domain=DOMAIN,
                 translation_key="missing_or_invalid_entity_id",
             )
@@ -379,7 +443,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("Missing or invalid fan_mode (%s)", 
                           fan_mode)
             raise ServiceValidationError(
-                f"Hysen: Missing or invalid fan_mode: {fan_mode}",
+                f"Missing or invalid fan_mode: {fan_mode}",
                 translation_domain=DOMAIN,
                 translation_key="missing_or_invalid_fan_mode",
             )
@@ -391,7 +455,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("entity_id must be a string or list of strings, got %s (type: %s)", 
                           entity_ids, type(entity_ids))
             raise ServiceValidationError(
-                f"Hysen: entity_id must be a string or list of strings, got {entity_ids}",
+                f"entity_id must be a string or list of strings, got {entity_ids}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_entity_id_type",
             )
@@ -415,7 +479,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     _LOGGER.error("[%s] fan mode %s is not allowed when HVAC mode is fan_only. Valid HVAC modes are: %s", 
                                   entity_id, fan_mode, ", ".join(HVAC_MODES_NO_FAN))
                     raise ServiceValidationError(
-                        f"Hysen: fan mode {fan_mode} is not allowed when HVAC mode is fan_only. Set HVAC mode to off, heat, or cool first.",
+                        f"fan mode {fan_mode} is not allowed when HVAC mode is fan_only. Set HVAC mode to off, heat, or cool first.",
                         translation_domain=DOMAIN,
                         translation_key="auto_fan_with_fan_only",
                     )
@@ -425,7 +489,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         if not valid_entity_ids:
             _LOGGER.error("No valid entity IDs provided")
             raise ServiceValidationError(
-                "Hysen: No valid entity IDs provided",
+                "No valid entity IDs provided",
                 translation_domain=DOMAIN,
                 translation_key="no_valid_entity_ids",
             )
@@ -444,15 +508,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 _LOGGER.error("Failed to set fan mode for %s: %s", entity_id, e)
                 raise
 
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_FAN_MODE,
-        async_set_fan_mode_handler,
-        schema=vol.Schema({
-            vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
-            vol.Required(ATTR_FAN_MODE): vol.In(["low", "medium", "high", "auto"])
-        })
-    )
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_FAN_MODE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_FAN_MODE,
+            async_set_fan_mode_handler,
+            schema=vol.Schema({
+                vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+    #            vol.Required(ATTR_FAN_MODE): vol.In(["low", "medium", "high", "auto"])
+                vol.Required(ATTR_FAN_MODE): cv.string,  # Validate as string, check in async_set_hvac_mode
+            })
+        )
 
     # Register custom service for set_preset_mode
     async def async_set_preset_mode_handler(service_call):
@@ -493,7 +559,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("Missing or invalid entity_id (%s)", 
                           entity_ids)
             raise ServiceValidationError(
-                f"Hysen: Missing or invalid entity_id ({entity_ids})",
+                f"Missing or invalid entity_id ({entity_ids})",
                 translation_domain=DOMAIN,
                 translation_key="missing_or_invalid_entity_id",
             )
@@ -501,7 +567,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("Missing or invalid preset_mode (%s)", 
                           preset_mode)
             raise ServiceValidationError(
-                f"Hysen: Missing or invalid preset_mode ({preset_mode})",
+                f"Missing or invalid preset_mode ({preset_mode})",
                 translation_domain=DOMAIN,
                 translation_key="missing_or_invalid_preset_mode",
             )
@@ -513,7 +579,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.error("entity_id must be a string or list of strings, got %s (type: %s)", 
                           entity_ids, type(entity_ids))
             raise ServiceValidationError(
-                f"Hysen: entity_id must be a string or list of strings, got {entity_ids}",
+                f"entity_id must be a string or list of strings, got {entity_ids}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_entity_id_type",
             )
@@ -532,7 +598,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         if not valid_entity_ids:
             _LOGGER.error("No valid entity IDs provided")
             raise ServiceValidationError(
-                "Hysen: No valid entity IDs provided",
+                "No valid entity IDs provided",
                 translation_domain=DOMAIN,
                 translation_key="no_valid_entity_ids",
             )
@@ -552,21 +618,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 raise
 
     # Register the service with updated schema
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_PRESET_MODE,
-        async_set_preset_mode_handler,
-        schema=vol.Schema({
-            vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
-            vol.Required(ATTR_PRESET_MODE): vol.In(PRESET_MODES)
-        })
-    )
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_PRESET_MODE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_PRESET_MODE,
+            async_set_preset_mode_handler,
+            schema=vol.Schema({
+                vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+                vol.Required(ATTR_PRESET_MODE): cv.string,  # Validate as string, check in async_set_preset_mode
+            })
+        )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _LOGGER.debug("Forwarding setup to %s platforms for MAC %s", PLATFORMS, mac)
 
     _LOGGER.info("Completed setup for device with MAC %s", mac)
     return True
+
+async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry when options are updated."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a Hysen config entry.
@@ -585,4 +657,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        # Remove custom services only when the last config entry is removed
+        if not hass.data[DOMAIN]:
+            for service_name in [
+                SERVICE_SET_HVAC_MODE,
+                SERVICE_SET_TEMPERATURE,
+                SERVICE_SET_FAN_MODE,
+                SERVICE_SET_PRESET_MODE,
+            ]:
+                hass.services.async_remove(DOMAIN, service_name)
     return unload_ok
