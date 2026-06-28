@@ -1,7 +1,24 @@
 """
-Support for Hysen 2 Pipe Fan Coil Controller time entities.
+Time platform for the Hysen 2 Pipe Fan Coil integration.
 
-This module provides time entities for controlling the schedule slots.
+Provides four TimeEntity instances for setting the start and stop times of
+the two daily schedule slots:
+
+- HysenSlot1StartTime — when the device turns on for period 1.
+- HysenSlot1StopTime  — when the device turns off after period 1.
+- HysenSlot2StartTime — when the device turns on for period 2.
+- HysenSlot2StopTime  — when the device turns off after period 2.
+
+Whether each slot is active is controlled by the corresponding switch
+entities (HysenSlot*EnableSwitch). Each entity also registers a service
+for automation use.
+
+Argument layout for device.set_daily_schedule:
+  (slot1_start_en, slot1_start_h, slot1_start_m,
+   slot1_stop_en,  slot1_stop_h,  slot1_stop_m,
+   slot2_start_en, slot2_start_h, slot2_start_m,
+   slot2_stop_en,  slot2_stop_h,  slot2_stop_m)
+Pass None for any argument that should remain unchanged.
 """
 
 import logging
@@ -29,19 +46,9 @@ from .entity import HysenEntity
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
-    """Set up the Hysen time entities from a config entry.
-
-    Initializes and adds the time entities for the device, and registers services.
-
-    Args:
-        hass: The Home Assistant instance.
-        config_entry: The configuration entry containing device details.
-        async_add_entities: Callback to add entities asynchronously.
-
-    Returns:
-        None
-    """
+    """Set up the Hysen time entities from a config entry."""
     device_data = hass.data[DOMAIN][config_entry.entry_id]
     async_add_entities([
         HysenSlot1StartTime(device_data),
@@ -72,18 +79,19 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
         "async_set_slot2_stop_time",
     )
 
-class HysenSlot1StartTime(HysenEntity, TimeEntity):
-    """Representation of a Hysen Slot 1 Start Time entity.
 
-    Allows setting the start time for schedule slot 1.
-    """
+def _parse_time(time_str):
+    """Parse 'H:MM' coordinator string to datetime.time, or None."""
+    if not time_str:
+        return None
+    hour, minute = map(int, time_str.split(":"))
+    return time(hour, minute)
+
+
+class HysenSlot1StartTime(HysenEntity, TimeEntity):
+    """Start time for schedule slot 1."""
 
     def __init__(self, device_data):
-        """Initialize the time entity.
-
-        Args:
-            device_data: Dictionary containing device-specific data (e.g., mac, name, coordinator).
-        """
         super().__init__(device_data["coordinator"], device_data)
         self._attr_unique_id = f"{device_data['mac']}_slot1_start_time"
         self._attr_name = f"{device_data['name']} Slot 1 Start Time"
@@ -91,90 +99,28 @@ class HysenSlot1StartTime(HysenEntity, TimeEntity):
 
     @property
     def native_value(self):
-        """Return the current time value.
-
-        Returns:
-            time: The current start time for slot 1, or None if not set.
-        """
-        time_str = self.coordinator.data.get(DATA_KEY_SLOT1_START_TIME)
-        if time_str:
-            hour, minute = map(int, time_str.split(":"))
-            return time(hour, minute)
-        return None
+        return _parse_time(self.coordinator.data.get(DATA_KEY_SLOT1_START_TIME))
 
     async def async_set_value(self, value: time):
-        """Set the slot 1 start time.
-
-        Args:
-            value: The time value to set.
-
-        Returns:
-            None
-        """
         _LOGGER.debug("[%s] Setting slot 1 start time to %s", self._host, value)
-        success = await self._async_try_command(
+        await self._async_try_command(
             "Error in set_daily_schedule",
             self.coordinator.device.set_daily_schedule,
-            None,
-            value.hour,
-            value.minute,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            None, value.hour, value.minute,
+            None, None, None,
+            None, None, None,
+            None, None, None,
         )
-        if success:
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_slot1_start_time(self, slot1_start_time):
-        """Set the slot 1 start time via service.
-
-        Args:
-            slot1_start_time: The time string in HH:MM format.
-
-        Returns:
-            None
-        """
-        _LOGGER.debug("[%s] Setting slot 1 start time to %s", self._host, slot1_start_time)
         hour, minute = map(int, slot1_start_time.split(":"))
-        success = await self._async_try_command(
-            "Error in set_daily_schedule",
-            self.coordinator.device.set_daily_schedule,
-            None,
-            hour,
-            minute,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        if success:
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
+        await self.async_set_value(time(hour, minute))
+
 
 class HysenSlot1StopTime(HysenEntity, TimeEntity):
-    """Representation of a Hysen Slot 1 Stop Time entity.
-
-    Allows setting the stop time for schedule slot 1.
-    """
+    """Stop time for schedule slot 1."""
 
     def __init__(self, device_data):
-        """Initialize the time entity.
-
-        Args:
-            device_data: Dictionary containing device-specific data (e.g., mac, name, coordinator).
-        """
         super().__init__(device_data["coordinator"], device_data)
         self._attr_unique_id = f"{device_data['mac']}_slot1_stop_time"
         self._attr_name = f"{device_data['name']} Slot 1 Stop Time"
@@ -182,90 +128,28 @@ class HysenSlot1StopTime(HysenEntity, TimeEntity):
 
     @property
     def native_value(self):
-        """Return the current time value.
-
-        Returns:
-            time: The current stop time for slot 1, or None if not set.
-        """
-        time_str = self.coordinator.data.get(DATA_KEY_SLOT1_STOP_TIME)
-        if time_str:
-            hour, minute = map(int, time_str.split(":"))
-            return time(hour, minute)
-        return None
+        return _parse_time(self.coordinator.data.get(DATA_KEY_SLOT1_STOP_TIME))
 
     async def async_set_value(self, value: time):
-        """Set the slot 1 stop time.
-
-        Args:
-            value: The time value to set.
-
-        Returns:
-            None
-        """
         _LOGGER.debug("[%s] Setting slot 1 stop time to %s", self._host, value)
-        success = await self._async_try_command(
+        await self._async_try_command(
             "Error in set_daily_schedule",
             self.coordinator.device.set_daily_schedule,
-            None,
-            None,
-            None,
-            None,
-            value.hour,
-            value.minute,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            None, None, None,
+            None, value.hour, value.minute,
+            None, None, None,
+            None, None, None,
         )
-        if success:
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_slot1_stop_time(self, slot1_stop_time):
-        """Set the slot 1 stop time via service.
-
-        Args:
-            slot1_stop_time: The time string in HH:MM format.
-
-        Returns:
-            None
-        """
-        _LOGGER.debug("[%s] Setting slot 1 stop time to %s", self._host, slot1_stop_time)
         hour, minute = map(int, slot1_stop_time.split(":"))
-        success = await self._async_try_command(
-            "Error in set_daily_schedule",
-            self.coordinator.device.set_daily_schedule,
-            None,
-            None,
-            None,
-            None,
-            hour,
-            minute,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        if success:
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
+        await self.async_set_value(time(hour, minute))
+
 
 class HysenSlot2StartTime(HysenEntity, TimeEntity):
-    """Representation of a Hysen Slot 2 Start Time entity.
-
-    Allows setting the start time for schedule slot 2.
-    """
+    """Start time for schedule slot 2."""
 
     def __init__(self, device_data):
-        """Initialize the time entity.
-
-        Args:
-            device_data: Dictionary containing device-specific data (e.g., mac, name, coordinator).
-        """
         super().__init__(device_data["coordinator"], device_data)
         self._attr_unique_id = f"{device_data['mac']}_slot2_start_time"
         self._attr_name = f"{device_data['name']} Slot 2 Start Time"
@@ -273,90 +157,28 @@ class HysenSlot2StartTime(HysenEntity, TimeEntity):
 
     @property
     def native_value(self):
-        """Return the current time value.
-
-        Returns:
-            time: The current start time for slot 2, or None if not set.
-        """
-        time_str = self.coordinator.data.get(DATA_KEY_SLOT2_START_TIME)
-        if time_str:
-            hour, minute = map(int, time_str.split(":"))
-            return time(hour, minute)
-        return None
+        return _parse_time(self.coordinator.data.get(DATA_KEY_SLOT2_START_TIME))
 
     async def async_set_value(self, value: time):
-        """Set the slot 2 start time.
-
-        Args:
-            value: The time value to set.
-
-        Returns:
-            None
-        """
         _LOGGER.debug("[%s] Setting slot 2 start time to %s", self._host, value)
-        success = await self._async_try_command(
+        await self._async_try_command(
             "Error in set_daily_schedule",
             self.coordinator.device.set_daily_schedule,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            value.hour,
-            value.minute,
-            None,
-            None,
-            None,
+            None, None, None,
+            None, None, None,
+            None, value.hour, value.minute,
+            None, None, None,
         )
-        if success:
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_slot2_start_time(self, slot2_start_time):
-        """Set the slot 2 start time via service.
-
-        Args:
-            slot2_start_time: The time string in HH:MM format.
-
-        Returns:
-            None
-        """
-        _LOGGER.debug("[%s] Setting slot 2 start time to %s", self._host, slot2_start_time)
         hour, minute = map(int, slot2_start_time.split(":"))
-        success = await self._async_try_command(
-            "Error in set_daily_schedule",
-            self.coordinator.device.set_daily_schedule,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            hour,
-            minute,
-            None,
-            None,
-            None,
-        )
-        if success:
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
+        await self.async_set_value(time(hour, minute))
+
 
 class HysenSlot2StopTime(HysenEntity, TimeEntity):
-    """Representation of a Hysen Slot 2 Stop Time entity.
-
-    Allows setting the stop time for schedule slot 2.
-    """
+    """Stop time for schedule slot 2."""
 
     def __init__(self, device_data):
-        """Initialize the time entity.
-
-        Args:
-            device_data: Dictionary containing device-specific data (e.g., mac, name, coordinator).
-        """
         super().__init__(device_data["coordinator"], device_data)
         self._attr_unique_id = f"{device_data['mac']}_slot2_stop_time"
         self._attr_name = f"{device_data['name']} Slot 2 Stop Time"
@@ -364,74 +186,19 @@ class HysenSlot2StopTime(HysenEntity, TimeEntity):
 
     @property
     def native_value(self):
-        """Return the current time value.
-
-        Returns:
-            time: The current stop time for slot 2, or None if not set.
-        """
-        time_str = self.coordinator.data.get(DATA_KEY_SLOT2_STOP_TIME)
-        if time_str:
-            hour, minute = map(int, time_str.split(":"))
-            return time(hour, minute)
-        return None
+        return _parse_time(self.coordinator.data.get(DATA_KEY_SLOT2_STOP_TIME))
 
     async def async_set_value(self, value: time):
-        """Set the slot 2 stop time.
-
-        Args:
-            value: The time value to set.
-
-        Returns:
-            None
-        """
         _LOGGER.debug("[%s] Setting slot 2 stop time to %s", self._host, value)
-        success = await self._async_try_command(
+        await self._async_try_command(
             "Error in set_daily_schedule",
             self.coordinator.device.set_daily_schedule,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            value.hour,
-            value.minute,
+            None, None, None,
+            None, None, None,
+            None, None, None,
+            None, value.hour, value.minute,
         )
-        if success:
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
 
     async def async_set_slot2_stop_time(self, slot2_stop_time):
-        """Set the slot 2 stop time via service.
-
-        Args:
-            slot2_stop_time: The time string in HH:MM format.
-
-        Returns:
-            None
-        """
-        _LOGGER.debug("[%s] Setting slot 2 stop time to %s", self._host, slot2_stop_time)
         hour, minute = map(int, slot2_stop_time.split(":"))
-        success = await self._async_try_command(
-            "Error in set_daily_schedule",
-            self.coordinator.device.set_daily_schedule,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            hour,
-            minute,
-        )
-        if success:
-            await self.coordinator.async_refresh()
-            self.async_write_ha_state()
+        await self.async_set_value(time(hour, minute))
