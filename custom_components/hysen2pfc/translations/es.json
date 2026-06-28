@@ -1,0 +1,286 @@
+{
+  "config": {
+    "error": {
+      "invalid_mac": "Formato de dirección MAC no válido. Proporcione una dirección MAC hexadecimal válida de 12 caracteres (p. ej., '00:1A:2B:3C:4D:5E').",
+      "device_already_configured": "Ya hay un dispositivo con esta dirección MAC configurado.",
+      "unknown": "Se produjo un error inesperado durante la configuración."
+    },
+    "step": {
+      "user": {
+        "title": "Configurar Hysen 2 Pipe Fan Coil",
+        "description": "Introduzca la dirección IP de su dispositivo Hysen. La dirección MAC se detectará automáticamente.",
+        "data": {
+          "host": "Dirección IP del host",
+          "name": "Nombre del dispositivo",
+          "timeout": "Tiempo de espera de conexión (segundos)"
+        }
+      },
+      "mac": {
+        "title": "Introducir dirección MAC",
+        "description": "No se pudo detectar automáticamente la dirección MAC para {host}. Introdúzcala manualmente (en la etiqueta del dispositivo o en la lista DHCP del router).",
+        "data": {
+          "mac": "Dirección MAC"
+        }
+      },
+      "confirm": {
+        "title": "Confirmar dispositivo Hysen",
+        "description": "Configurar el dispositivo en **{host}** (MAC: `{mac}`). Puede cambiar el nombre a continuación.",
+        "data": {
+          "name": "Nombre del dispositivo"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Confirmar dispositivo Hysen",
+        "description": "Configurar el dispositivo encontrado en {host} (MAC: {mac}).",
+        "data": {
+          "name": "Nombre del dispositivo"
+        }
+      }
+    }
+  },
+  "errors": {
+    "missing_or_invalid_entity_id": "entity_id faltante o no válido ({entity_ids})",
+    "missing_or_invalid_hvac_mode": "hvac_mode faltante o no válido: {hvac_mode}",
+    "fan_only_with_auto_fan": "El modo HVAC {hvac_mode} no está permitido cuando el ventilador está en modo automático. Configure primero el ventilador en bajo, medio o alto.",
+    "invalid_hvac_mode": "Modo HVAC no válido: {hvac_mode}. Modos válidos: {valid_modes}.",
+    "missing_or_invalid_fan_mode": "fan_mode faltante o no válido: {fan_mode}",
+    "auto_fan_with_fan_only": "El modo ventilador {fan_mode} no está permitido cuando el modo HVAC es fan_only. Configure primero el modo HVAC en off, heat o cool.",
+    "invalid_fan_mode": "Modo ventilador no válido: {fan_mode}. Modos válidos: {valid_modes}.",
+    "missing_or_invalid_temperature": "Temperatura faltante o no válida ({temperature}).",
+    "missing_or_invalid_preset_mode": "Modo predefinido faltante o no válido: {preset_mode}.",
+    "invalid_entity_id_type": "El ID de entidad debe ser una cadena o lista de cadenas, se obtuvo {entity_ids}",
+    "no_valid_entity_ids": "No se proporcionaron IDs de entidad válidos.",
+    "invalid_preset_mode": "Modo predefinido no válido: {preset_mode}. Modos válidos: {valid_modes}.",
+    "invalid_temperature": "La temperatura {temperature}°C está fuera de rango. Rango válido: {min_temp} a {max_temp}°C.",
+    "invalid_temperature_type": "Valor de temperatura no válido: {temperature} (se esperaba un número).",
+    "missing_temperature_range": "El rango de temperatura del dispositivo no está configurado.",
+    "temperature_out_of_range": "La temperatura {temperature}°C está fuera de rango para {entity_id}. Rango válido: {min_temp} a {max_temp}°C.",
+    "cooling_max_below_target": "La temperatura máxima de enfriamiento no puede ser inferior a la temperatura objetivo actual.",
+    "cooling_max_below_min": "La temperatura máxima de enfriamiento no puede ser inferior a la temperatura mínima de enfriamiento.",
+    "heating_max_below_target": "La temperatura máxima de calefacción no puede ser inferior a la temperatura objetivo actual.",
+    "heating_max_below_min": "La temperatura máxima de calefacción no puede ser inferior a la temperatura mínima de calefacción.",
+    "cooling_min_above_target": "La temperatura mínima de enfriamiento no puede ser superior a la temperatura objetivo actual.",
+    "cooling_min_above_max": "La temperatura mínima de enfriamiento no puede ser superior a la temperatura máxima de enfriamiento.",
+    "heating_min_above_target": "La temperatura mínima de calefacción no puede ser superior a la temperatura objetivo actual.",
+    "heating_min_above_max": "La temperatura mínima de calefacción no puede ser superior a la temperatura máxima de calefacción.",
+    "invalid_hvac_mode_for_temp": "No se puede establecer el límite de temperatura en el modo {hvac_mode}."
+  },
+  "services": {
+    "set_key_lock": {
+      "name": "Establecer bloqueo de teclas",
+      "description": "Establece el modo de bloqueo de teclas del dispositivo.",
+      "fields": {
+        "key_lock": {
+          "name": "Bloqueo de teclas",
+          "description": "Modo: 'Unlocked', 'Locked Except Power' o 'Locked'."
+        }
+      }
+    },
+    "set_hvac_mode": {
+      "name": "Establecer modo HVAC",
+      "description": "Establece el modo HVAC del dispositivo.",
+      "fields": {
+        "hvac_mode": {
+          "name": "Modo HVAC",
+          "description": "Modo: 'off', 'heat', 'cool' o 'fan_only'."
+        }
+      }
+    },
+    "set_fan_mode": {
+      "name": "Establecer modo ventilador",
+      "description": "Establece el modo del ventilador.",
+      "fields": {
+        "fan_mode": {
+          "name": "Modo ventilador",
+          "description": "Modo: 'low', 'medium', 'high' o 'auto'."
+        }
+      }
+    },
+    "set_preset_mode": {
+      "name": "Establecer modo predefinido",
+      "description": "Establece el modo predefinido del dispositivo.",
+      "fields": {
+        "preset_mode": {
+          "name": "Modo predefinido",
+          "description": "Modo: 'Today', 'Workdays', 'Sixdays' o 'Fullweek'."
+        }
+      }
+    },
+    "set_temperature": {
+      "name": "Establecer temperatura",
+      "description": "Establece la temperatura objetivo.",
+      "fields": {
+        "temperature": {
+          "name": "Temperatura",
+          "description": "Temperatura objetivo en Celsius (entre 10 y 40°C)."
+        }
+      }
+    },
+    "turn_on": {
+      "name": "Encender",
+      "description": "Enciende el dispositivo de climatización."
+    },
+    "turn_off": {
+      "name": "Apagar",
+      "description": "Apaga el dispositivo de climatización."
+    },
+    "set_hysteresis": {
+      "name": "Establecer histéresis",
+      "description": "Establece el valor de histéresis.",
+      "fields": {
+        "hysteresis": {
+          "name": "Histéresis",
+          "description": "Valor de histéresis: '0.5' o '1' (en °C)."
+        }
+      }
+    },
+    "set_calibration": {
+      "name": "Establecer calibración",
+      "description": "Establece la calibración del sensor de temperatura.",
+      "fields": {
+        "calibration": {
+          "name": "Calibración",
+          "description": "Valor de calibración (entre -5.0 y 5.0, en pasos de 0.1°C)."
+        }
+      }
+    },
+    "set_max_temp": {
+      "name": "Establecer temperatura máxima",
+      "description": "Establece la temperatura máxima permitida según el modo HVAC.",
+      "fields": {
+        "max_temp": {
+          "name": "Temperatura máxima",
+          "description": "Temperatura máxima (entre 10 y 40°C, debe ser al menos igual a la temperatura objetivo)."
+        }
+      }
+    },
+    "set_min_temp": {
+      "name": "Establecer temperatura mínima",
+      "description": "Establece la temperatura mínima permitida según el modo HVAC.",
+      "fields": {
+        "min_temp": {
+          "name": "Temperatura mínima",
+          "description": "Temperatura mínima (entre 10 y 40°C, no debe superar la temperatura objetivo)."
+        }
+      }
+    },
+    "set_fan_control": {
+      "name": "Control del ventilador",
+      "description": "Activa o desactiva el control del ventilador.",
+      "fields": {
+        "fan_control": {
+          "name": "Control del ventilador",
+          "description": "Estado: 'on' o 'off'."
+        }
+      }
+    },
+    "set_frost_protection": {
+      "name": "Protección anticongelante",
+      "description": "Activa o desactiva la protección anticongelante.",
+      "fields": {
+        "frost_protection": {
+          "name": "Protección anticongelante",
+          "description": "Estado: 'on' o 'off'."
+        }
+      }
+    },
+    "set_time": {
+      "name": "Establecer hora",
+      "description": "Establece la hora interna del dispositivo.",
+      "fields": {
+        "now": {
+          "name": "Ahora",
+          "description": "Sincronizar con la hora del sistema."
+        },
+        "time": {
+          "name": "Hora",
+          "description": "Hora específica en formato HH:MM:SS."
+        },
+        "weekday": {
+          "name": "Día de la semana",
+          "description": "Día de la semana (1 = Lunes, 7 = Domingo)."
+        }
+      }
+    },
+    "set_slot1_start_enable": {
+      "name": "Activar inicio ranura 1",
+      "description": "Activa la hora de inicio de la primera ranura.",
+      "fields": {
+        "slot1_start_enable": {
+          "name": "Activación inicio ranura 1",
+          "description": "Estado: 'on' o 'off'."
+        }
+      }
+    },
+    "set_slot1_stop_enable": {
+      "name": "Activar fin ranura 1",
+      "description": "Activa la hora de fin de la primera ranura.",
+      "fields": {
+        "slot1_stop_enable": {
+          "name": "Activación fin ranura 1",
+          "description": "Estado: 'on' o 'off'."
+        }
+      }
+    },
+    "set_slot2_start_enable": {
+      "name": "Activar inicio ranura 2",
+      "description": "Activa la hora de inicio de la segunda ranura.",
+      "fields": {
+        "slot2_start_enable": {
+          "name": "Activación inicio ranura 2",
+          "description": "Estado: 'on' o 'off'."
+        }
+      }
+    },
+    "set_slot2_stop_enable": {
+      "name": "Activar fin ranura 2",
+      "description": "Activa la hora de fin de la segunda ranura.",
+      "fields": {
+        "slot2_stop_enable": {
+          "name": "Activación fin ranura 2",
+          "description": "Estado: 'on' o 'off'."
+        }
+      }
+    },
+    "set_slot1_start_time": {
+      "name": "Hora inicio ranura 1",
+      "description": "Establece la hora de inicio de la primera ranura.",
+      "fields": {
+        "slot1_start_time": {
+          "name": "Hora inicio ranura 1",
+          "description": "Formato HH:MM."
+        }
+      }
+    },
+    "set_slot1_stop_time": {
+      "name": "Hora fin ranura 1",
+      "description": "Establece la hora de fin de la primera ranura.",
+      "fields": {
+        "slot1_stop_time": {
+          "name": "Hora fin ranura 1",
+          "description": "Formato HH:MM."
+        }
+      }
+    },
+    "set_slot2_start_time": {
+      "name": "Hora inicio ranura 2",
+      "description": "Establece la hora de inicio de la segunda ranura.",
+      "fields": {
+        "slot2_start_time": {
+          "name": "Hora inicio ranura 2",
+          "description": "Formato HH:MM."
+        }
+      }
+    },
+    "set_slot2_stop_time": {
+      "name": "Hora fin ranura 2",
+      "description": "Establece la hora de fin de la segunda ranura.",
+      "fields": {
+        "slot2_stop_time": {
+          "name": "Hora fin ranura 2",
+          "description": "Formato HH:MM."
+        }
+      }
+    }
+  }
+}
