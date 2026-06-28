@@ -8,12 +8,32 @@
     "step": {
       "user": {
         "title": "Configure Hysen 2 Pipe Fan Coil",
-        "description": "Enter the details for your Hysen 2 Pipe Fan Coil device.",
+        "description": "Enter the IP address of your Hysen device. The MAC address will be detected automatically.",
         "data": {
           "host": "Host IP Address",
-          "mac": "MAC Address",
           "name": "Device Name",
           "timeout": "Connection Timeout (seconds)"
+        }
+      },
+      "mac": {
+        "title": "Enter MAC Address",
+        "description": "Could not auto-detect the MAC address for {host}. Please enter it manually (found on the device label or your router's DHCP list).",
+        "data": {
+          "mac": "MAC Address"
+        }
+      },
+      "confirm": {
+        "title": "Confirm Hysen Device",
+        "description": "Configure the device at **{host}** (MAC: `{mac}`). You can change the name below.",
+        "data": {
+          "name": "Device Name"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Confirm Hysen Device",
+        "description": "Configure the device found at {host} (MAC: {mac}).",
+        "data": {
+          "name": "Device Name"
         }
       }
     }
@@ -29,7 +49,21 @@
     "missing_or_invalid_temperature": "Missing or invalid temperature ({temperature}).",
     "missing_or_invalid_preset_mode": "Missing or invalid preset mode: {preset_mode}.",
     "invalid_entity_id_type": "Entity ID must be a string or a list of strings, got {entity_ids}",
-    "no_valid_entity_ids": "No valid entity IDs provided."
+    "no_valid_entity_ids": "No valid entity IDs provided.",
+    "invalid_preset_mode": "Invalid preset mode: {preset_mode}. Valid modes are: {valid_modes}.",
+    "invalid_temperature": "Temperature {temperature}\u00b0C is out of range. Valid range is {min_temp} to {max_temp}\u00b0C.",
+    "invalid_temperature_type": "Invalid temperature value: {temperature} (expected a number).",
+    "missing_temperature_range": "Device temperature range is not set.",
+    "temperature_out_of_range": "Temperature {temperature}\u00b0C is out of range for {entity_id}. Valid range is {min_temp} to {max_temp}\u00b0C.",
+    "cooling_max_below_target": "Cooling max temperature must not be lower than the current target temperature.",
+    "cooling_max_below_min": "Cooling max temperature must not be lower than cooling min temperature.",
+    "heating_max_below_target": "Heating max temperature must not be lower than the current target temperature.",
+    "heating_max_below_min": "Heating max temperature must not be lower than heating min temperature.",
+    "cooling_min_above_target": "Cooling min temperature must not be higher than the current target temperature.",
+    "cooling_min_above_max": "Cooling min temperature must not be higher than cooling max temperature.",
+    "heating_min_above_target": "Heating min temperature must not be higher than the current target temperature.",
+    "heating_min_above_max": "Heating min temperature must not be higher than heating max temperature.",
+    "invalid_hvac_mode_for_temp": "Cannot set temperature limit in {hvac_mode} mode."
   },
   "services": {
     "set_key_lock": {
@@ -78,7 +112,7 @@
       "fields": {
         "temperature": {
           "name": "Temperature",
-          "description": "Set the target temperature in Celsius (between 10 and 40°C)."
+          "description": "Set the target temperature in Celsius (between 10 and 40\u00b0C)."
         }
       }
     },
@@ -96,7 +130,7 @@
       "fields": {
         "hysteresis": {
           "name": "Hysteresis",
-          "description": "Set the hysteresis value: '0.5' or '1' (in °C)."
+          "description": "Set the hysteresis value: '0.5' or '1' (in \u00b0C)."
         }
       }
     },
@@ -106,7 +140,7 @@
       "fields": {
         "calibration": {
           "name": "Calibration",
-          "description": "Set the calibration value (between -5.0 and 5.0, in 0.1°C steps)."
+          "description": "Set the calibration value (between -5.0 and 5.0, in 0.1\u00b0C steps)."
         }
       }
     },
@@ -116,7 +150,7 @@
       "fields": {
         "max_temp": {
           "name": "Maximum Temperature",
-          "description": "Set the maximum temperature (between 10 and 40°C, must be at least target temperature)."
+          "description": "Set the maximum temperature (between 10 and 40\u00b0C, must be at least target temperature)."
         }
       }
     },
@@ -126,7 +160,7 @@
       "fields": {
         "min_temp": {
           "name": "Minimum Temperature",
-          "description": "Set the minimum temperature (between 10 and 40°C, must not exceed target temperature)."
+          "description": "Set the minimum temperature (between 10 and 40\u00b0C, must not exceed target temperature)."
         }
       }
     },
